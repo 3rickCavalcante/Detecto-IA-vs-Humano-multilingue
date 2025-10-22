@@ -8,7 +8,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
     <style>
-        /* Mantenha todo o CSS anterior aqui */
         * {
             margin: 0;
             padding: 0;
@@ -116,6 +115,13 @@
 
         .btn-secondary {
             background: linear-gradient(135deg, #6c757d, #495057);
+        }
+
+        .btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
         }
 
         .results-container {
@@ -311,6 +317,15 @@
             border-radius: 8px;
             font-size: 1em;
         }
+
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            border-left: 4px solid #dc3545;
+        }
     </style>
 </head>
 <body>
@@ -417,8 +432,417 @@
         // ========== CONFIGURAÇÕES E PADRÕES ==========
         
         let currentAnalysisResult = null;
+        let extractedText = '';
 
-        // ... (mantenha todas as funções anteriores de detectLanguage, padrões, análise, etc.)
+        // Padrões de IA por idioma
+        const aiPatterns = {
+            pt: [
+                { pattern: /além disso|dessa forma|portanto|assim sendo|desse modo/gi, weight: 0.7, description: "Transições formulaicas" },
+                { pattern: /é importante destacar que|vale ressaltar que|cabe mencionar que/gi, weight: 0.8, description: "Frases introdutórias padronizadas" },
+                { pattern: /em resumo|em conclusão|para finalizar|dito isso/gi, weight: 0.6, description: "Fórmulas de conclusão" },
+                { pattern: /como uma inteligência artificial|como um modelo de linguagem/gi, weight: 1.0, description: "Auto-referência a IA" }
+            ],
+            en: [
+                { pattern: /furthermore|moreover|therefore|thus|hence/gi, weight: 0.7, description: "Formulaic transitions" },
+                { pattern: /it is important to note|it should be emphasized|it is worth mentioning/gi, weight: 0.8, description: "Standard introductory phrases" },
+                { pattern: /in summary|in conclusion|to summarize|in closing/gi, weight: 0.6, description: "Conclusion formulas" },
+                { pattern: /as an ai|as a language model/gi, weight: 1.0, description: "AI self-reference" }
+            ],
+            es: [
+                { pattern: /además|por lo tanto|así pues|de esta manera/gi, weight: 0.7, description: "Transiciones formulaicas" },
+                { pattern: /es importante destacar que|cabe mencionar que|vale la pena resaltar/gi, weight: 0.8, description: "Frases introductorias estandarizadas" },
+                { pattern: /en resumen|en conclusión|para finalizar|dicho esto/gi, weight: 0.6, description: "Fórmulas de conclusión" }
+            ],
+            fr: [
+                { pattern: /de plus|par conséquent|ainsi|de cette manière/gi, weight: 0.7, description: "Transitions formulaires" },
+                { pattern: /il est important de noter que|il convient de souligner que/gi, weight: 0.8, description: "Phrases d'introduction standardisées" },
+                { pattern: /en résumé|en conclusion|pour conclure|ceci étant dit/gi, weight: 0.6, description: "Formules de conclusion" }
+            ]
+        };
+
+        // Padrões humanos
+        const humanPatterns = {
+            universal: [
+                { pattern: /eu acho que|na minha opinião|penso que|acredito que/gi, weight: 0.9, description: "Expressões de opinião pessoal" },
+                { pattern: /rsrs|kkk|haha|hehe|😊|😂|:/gi, weight: 0.8, description: "Expressões informais e emoticons" },
+                { pattern: /tipo|assim|entende\?|sabe\?/gi, weight: 0.7, description: "Marcadores conversacionais" },
+                { pattern: /\buh\b|\bhum\b|hmmm/gi, weight: 0.6, description: "Hesitações e pausas" }
+            ]
+        };
+
+        // ========== FUNÇÕES DE ANÁLISE ==========
+
+        function detectLanguage(text) {
+            const patterns = {
+                pt: /\b(que|não|de|da|do|em|um|uma|com|por|os|as)\b/gi,
+                en: /\b(the|and|to|of|a|in|is|it|you|that)\b/gi,
+                es: /\b(el|la|de|que|y|en|un|es|se|los)\b/gi,
+                fr: /\b(le|la|de|et|à|en|un|une|est|il)\b/gi
+            };
+
+            let scores = { pt: 0, en: 0, es: 0, fr: 0 };
+            const words = text.toLowerCase().split(/\s+/).slice(0, 100);
+
+            words.forEach(word => {
+                for (const [lang, pattern] of Object.entries(patterns)) {
+                    if (pattern.test(' ' + word + ' ')) {
+                        scores[lang]++;
+                    }
+                }
+            });
+
+            const detectedLang = Object.keys(scores).reduce((a, b) => scores[a] > scores[b] ? a : b);
+            return scores[detectedLang] > 5 ? detectedLang : 'other';
+        }
+
+        function analyzeTextPatterns(text, language) {
+            let aiScore = 0;
+            let humanScore = 0;
+            const aiMatches = [];
+            const humanMatches = [];
+
+            // Analisar padrões de IA
+            const langPatterns = aiPatterns[language] || aiPatterns.en;
+            langPatterns.forEach(patternObj => {
+                const matches = text.match(patternObj.pattern);
+                if (matches) {
+                    aiScore += matches.length * patternObj.weight;
+                    matches.forEach(match => {
+                        aiMatches.push({
+                            text: match,
+                            description: patternObj.description,
+                            weight: patternObj.weight
+                        });
+                    });
+                }
+            });
+
+            // Analisar padrões humanos
+            humanPatterns.universal.forEach(patternObj => {
+                const matches = text.match(patternObj.pattern);
+                if (matches) {
+                    humanScore += matches.length * patternObj.weight;
+                    matches.forEach(match => {
+                        humanMatches.push({
+                            text: match,
+                            description: patternObj.description,
+                            weight: patternObj.weight
+                        });
+                    });
+                }
+            });
+
+            // Análise de complexidade
+            const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+            const words = text.split(/\s+/).filter(w => w.length > 0);
+            const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim().length > 0);
+
+            // Calcular métricas de complexidade
+            const avgSentenceLength = words.length / sentences.length;
+            const lexicalDiversity = new Set(words.map(w => w.toLowerCase())).size / words.length;
+
+            // Ajustar scores baseado na complexidade
+            if (avgSentenceLength > 25) aiScore += 2;
+            if (lexicalDiversity < 0.5) aiScore += 1;
+            if (avgSentenceLength < 15) humanScore += 1;
+            if (lexicalDiversity > 0.7) humanScore += 2;
+
+            return {
+                aiScore: Math.min(aiScore, 10),
+                humanScore: Math.min(humanScore, 10),
+                aiMatches,
+                humanMatches,
+                metrics: {
+                    sentenceCount: sentences.length,
+                    wordCount: words.length,
+                    paragraphCount: paragraphs.length,
+                    avgSentenceLength: avgSentenceLength.toFixed(2),
+                    lexicalDiversity: (lexicalDiversity * 100).toFixed(1)
+                }
+            };
+        }
+
+        function calculateProbability(analysis) {
+            const total = analysis.aiScore + analysis.humanScore;
+            if (total === 0) return { human: 50, ai: 50, confidence: 0 };
+
+            const humanProbability = (analysis.humanScore / total) * 100;
+            const aiProbability = 100 - humanProbability;
+            
+            // Calcular confiança baseada na força dos sinais
+            const confidence = Math.min((analysis.aiScore + analysis.humanScore) / 2 * 10, 100);
+
+            return {
+                human: Math.round(humanProbability),
+                ai: Math.round(aiProbability),
+                confidence: Math.round(confidence)
+            };
+        }
+
+        // ========== FUNÇÕES DE PROCESSAMENTO DE ARQUIVOS ==========
+
+        async function extractTextFromFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                
+                reader.onload = async function(e) {
+                    try {
+                        let text = '';
+                        
+                        if (file.type === 'application/pdf') {
+                            // Processar PDF
+                            const pdfData = new Uint8Array(e.target.result);
+                            const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
+                            
+                            for (let i = 1; i <= pdf.numPages; i++) {
+                                const page = await pdf.getPage(i);
+                                const content = await page.getTextContent();
+                                text += content.items.map(item => item.str).join(' ') + '\n';
+                            }
+                        } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || 
+                                  file.type === 'application/msword') {
+                            // Processar DOCX/DOC
+                            const arrayBuffer = e.target.result;
+                            const result = await mammoth.extractRawText({ arrayBuffer });
+                            text = result.value;
+                        } else if (file.type === 'text/plain') {
+                            // Processar TXT
+                            text = e.target.result;
+                        } else {
+                            reject(new Error('Formato de arquivo não suportado'));
+                            return;
+                        }
+                        
+                        resolve(text);
+                    } catch (error) {
+                        reject(error);
+                    }
+                };
+                
+                reader.onerror = () => reject(new Error('Erro ao ler arquivo'));
+                
+                if (file.type === 'application/pdf') {
+                    reader.readAsArrayBuffer(file);
+                } else {
+                    reader.readAsText(file);
+                }
+            });
+        }
+
+        // ========== FUNÇÃO PRINCIPAL DE ANÁLISE ==========
+
+        async function analyzeContent() {
+            const textInput = document.getElementById('textInput');
+            const fileInput = document.getElementById('fileInput');
+            const loading = document.getElementById('loading');
+            const resultsContainer = document.getElementById('resultsContainer');
+            const analyzeBtn = document.getElementById('analyzeBtn');
+
+            // Validar entrada
+            let text = textInput.value.trim();
+            const file = fileInput.files[0];
+
+            if (!text && !file) {
+                alert('Por favor, insira um texto ou selecione um arquivo para análise.');
+                return;
+            }
+
+            // Mostrar loading
+            analyzeBtn.disabled = true;
+            loading.style.display = 'block';
+            resultsContainer.style.display = 'none';
+
+            try {
+                // Extrair texto do arquivo se fornecido
+                if (file) {
+                    text = await extractTextFromFile(file);
+                    textInput.value = text; // Mostrar texto extraído no textarea
+                }
+
+                if (!text.trim()) {
+                    throw new Error('Não foi possível extrair texto do arquivo ou o texto está vazio.');
+                }
+
+                extractedText = text;
+
+                // Detectar idioma
+                const languageSelect = document.getElementById('languageSelect');
+                const selectedLanguage = languageSelect.value;
+                const detectedLanguage = selectedLanguage === 'auto' ? detectLanguage(text) : selectedLanguage;
+
+                // Analisar padrões
+                const analysis = analyzeTextPatterns(text, detectedLanguage);
+                const probabilities = calculateProbability(analysis);
+
+                // Preparar resultado
+                currentAnalysisResult = {
+                    humanProbability: probabilities.human,
+                    aiProbability: probabilities.ai,
+                    confidence: probabilities.confidence,
+                    detectedLanguage: detectedLanguage,
+                    contentType: document.getElementById('contentType').value,
+                    wordCount: analysis.metrics.wordCount,
+                    sentenceCount: analysis.metrics.sentenceCount,
+                    paragraphCount: analysis.metrics.paragraphCount,
+                    advancedMetrics: {
+                        aiPatternScore: Math.round((analysis.aiScore / 10) * 100),
+                        humanPatternScore: Math.round((analysis.humanScore / 10) * 100),
+                        lexicalRichness: analysis.metrics.lexicalDiversity,
+                        sentenceVariety: analysis.metrics.avgSentenceLength > 20 ? 'Alta' : 'Moderada',
+                        strongAIPatterns: analysis.aiMatches.length,
+                        strongHumanPatterns: analysis.humanMatches.length
+                    },
+                    aiPatternAnalysis: {
+                        patterns: analysis.aiMatches.slice(0, 10).map(match => ({
+                            description: match.description,
+                            matches: 1,
+                            examples: [match.text]
+                        }))
+                    },
+                    analyzedText: text,
+                    textHighlights: {
+                        aiPatterns: analysis.aiMatches.map(match => ({
+                            start: text.toLowerCase().indexOf(match.text.toLowerCase()),
+                            end: text.toLowerCase().indexOf(match.text.toLowerCase()) + match.text.length,
+                            pattern: match.description
+                        })),
+                        humanElements: analysis.humanMatches.map(match => ({
+                            start: text.toLowerCase().indexOf(match.text.toLowerCase()),
+                            end: text.toLowerCase().indexOf(match.text.toLowerCase()) + match.text.length,
+                            pattern: match.description
+                        }))
+                    }
+                };
+
+                // Exibir resultados
+                displayResults(currentAnalysisResult);
+
+            } catch (error) {
+                console.error('Erro na análise:', error);
+                alert('Erro ao analisar o conteúdo: ' + error.message);
+            } finally {
+                loading.style.display = 'none';
+                analyzeBtn.disabled = false;
+            }
+        }
+
+        // ========== FUNÇÃO PARA EXIBIR RESULTADOS ==========
+
+        function displayResults(result) {
+            const resultsContainer = document.getElementById('resultsContainer');
+            const humanProbabilityBar = document.getElementById('humanProbabilityBar');
+            const probabilityText = document.getElementById('probabilityText');
+            const advancedMetrics = document.getElementById('advancedMetrics');
+            const analysisDetails = document.getElementById('analysisDetails');
+            const textPreview = document.getElementById('textPreview');
+            const suggestions = document.getElementById('suggestions');
+
+            // Atualizar barra de probabilidade
+            humanProbabilityBar.style.width = `${result.humanProbability}%`;
+
+            // Atualizar texto de probabilidade
+            let probabilityMessage = '';
+            let confidenceClass = '';
+            
+            if (result.confidence >= 80) {
+                confidenceClass = 'high-confidence';
+            } else if (result.confidence >= 60) {
+                confidenceClass = 'medium-confidence';
+            } else {
+                confidenceClass = 'low-confidence';
+            }
+
+            if (result.humanProbability >= 70) {
+                probabilityMessage = `Provável conteúdo humano <span class="confidence-indicator ${confidenceClass}">${result.confidence}% confiança</span>`;
+            } else if (result.humanProbability >= 50) {
+                probabilityMessage = `Características mistas <span class="confidence-indicator ${confidenceClass}">${result.confidence}% confiança</span>`;
+            } else if (result.humanProbability >= 30) {
+                probabilityMessage = `Provável conteúdo de IA <span class="confidence-indicator ${confidenceClass}">${result.confidence}% confiança</span>`;
+            } else {
+                probabilityMessage = `Alta probabilidade de conteúdo de IA <span class="confidence-indicator ${confidenceClass}">${result.confidence}% confiança</span>`;
+            }
+
+            probabilityText.innerHTML = probabilityMessage;
+
+            // Atualizar métricas avançadas
+            const metrics = result.advancedMetrics;
+            advancedMetrics.innerHTML = `
+                <div class="metric-card">
+                    <div>Padrões de IA</div>
+                    <div class="metric-value ${metrics.aiPatternScore > 60 ? 'bad-metric' : metrics.aiPatternScore > 30 ? 'warning-metric' : 'good-metric'}">${metrics.aiPatternScore}%</div>
+                </div>
+                <div class="metric-card">
+                    <div>Padrões Humanos</div>
+                    <div class="metric-value ${metrics.humanPatternScore > 60 ? 'good-metric' : metrics.humanPatternScore > 30 ? 'warning-metric' : 'bad-metric'}">${metrics.humanPatternScore}%</div>
+                </div>
+                <div class="metric-card">
+                    <div>Riqueza Lexical</div>
+                    <div class="metric-value ${metrics.lexicalRichness > 60 ? 'good-metric' : metrics.lexicalRichness > 40 ? 'warning-metric' : 'bad-metric'}">${metrics.lexicalRichness}%</div>
+                </div>
+                <div class="metric-card">
+                    <div>Variação de Frases</div>
+                    <div class="metric-value ${metrics.sentenceVariety === 'Alta' ? 'good-metric' : 'warning-metric'}">${metrics.sentenceVariety}</div>
+                </div>
+            `;
+
+            // Atualizar detalhes da análise
+            analysisDetails.innerHTML = `
+                <div class="detail-item">
+                    <h4>Idioma Detectado</h4>
+                    <p>${result.detectedLanguage.toUpperCase()} - ${result.confidence}% de confiança na detecção</p>
+                </div>
+                <div class="detail-item">
+                    <h4>Estatísticas do Texto</h4>
+                    <p>${result.wordCount} palavras, ${result.sentenceCount} sentenças, ${result.paragraphCount} parágrafos</p>
+                </div>
+                <div class="detail-item">
+                    <h4>Padrões de IA Identificados</h4>
+                    ${result.aiPatternAnalysis.patterns.length > 0 ? 
+                      result.aiPatternAnalysis.patterns.map(pattern => 
+                        `<div class="highlight-ai">
+                            <strong>${pattern.description}</strong><br>
+                            Exemplo: "${pattern.examples[0]}"
+                         </div>`
+                      ).join('') : 
+                      '<p>Nenhum padrão forte de IA detectado</p>'
+                    }
+                </div>
+            `;
+
+            // Atualizar preview do texto (limitado)
+            const previewText = result.analyzedText.length > 1000 ? 
+                result.analyzedText.substring(0, 1000) + '...' : 
+                result.analyzedText;
+            textPreview.textContent = previewText;
+
+            // Atualizar sugestões
+            let suggestionText = '';
+            if (result.humanProbability < 50) {
+                suggestionText = `
+                    <h4>Sugestões para Tornar o Texto Mais Autêntico</h4>
+                    <ul>
+                        <li>Adicione mais expressões de opinião pessoal</li>
+                        <li>Use exemplos específicos e experiências reais</li>
+                        <li>Varie a estrutura das frases e parágrafos</li>
+                        <li>Inclua hesitações e marcadores conversacionais</li>
+                        <li>Evite fórmulas linguísticas padronizadas</li>
+                    </ul>
+                `;
+            } else {
+                suggestionText = `
+                    <h4>O Texto Apresenta Características Humanas Fortes</h4>
+                    <ul>
+                        <li>Continue mantendo seu estilo pessoal único</li>
+                        <li>O uso de expressões pessoais está adequado</li>
+                        <li>A estrutura do texto parece natural</li>
+                    </ul>
+                `;
+            }
+            suggestions.innerHTML = suggestionText;
+
+            // Mostrar resultados
+            resultsContainer.style.display = 'block';
+        }
 
         // ========== FUNÇÃO COMPLETA DO PDF ==========
 
@@ -604,78 +1028,11 @@
             addText("TEXTO COMPLETO:", { fontWeight: 'bold' });
             yPosition += 5;
 
-            // Processar o texto com destaques
+            // Processar o texto com destaques (versão simplificada)
             const text = result.analyzedText;
-            const highlights = result.textHighlights;
+            const previewText = text.length > 1500 ? text.substring(0, 1500) + "..." : text;
             
-            // Ordenar destaques por posição
-            const allHighlights = [
-                ...highlights.aiPatterns.map(h => ({...h, type: 'ai'})),
-                ...highlights.humanElements.map(h => ({...h, type: 'human'}))
-            ].sort((a, b) => a.start - b.start);
-
-            let lastPosition = 0;
-            const maxCharsPerPage = 2000; // Limite de caracteres por página para evitar sobrecarga
-
-            // Função para adicionar texto destacado
-            function addHighlightedText(start, end, text, type) {
-                const segment = text.substring(start, end);
-                const lines = doc.splitTextToSize(segment, contentWidth);
-                
-                lines.forEach((line, lineIndex) => {
-                    if (yPosition + 7 > doc.internal.pageSize.height - 20) {
-                        doc.addPage();
-                        yPosition = 20;
-                    }
-                    
-                    // Aplicar cor de fundo baseada no tipo
-                    if (type === 'ai') {
-                        doc.setFillColor(248, 215, 218); // Vermelho claro para IA
-                    } else {
-                        doc.setFillColor(212, 237, 218); // Verde claro para humano
-                    }
-                    
-                    const textWidth = doc.getTextWidth(line);
-                    doc.rect(margin, yPosition - 5, textWidth + 2, 7, 'F');
-                    
-                    doc.setTextColor(0, 0, 0);
-                    doc.text(line, margin, yPosition);
-                    yPosition += 7;
-                });
-            }
-
-            // Adicionar texto normal
-            function addNormalText(start, end, text) {
-                const segment = text.substring(start, end);
-                const lines = doc.splitTextToSize(segment, contentWidth);
-                
-                lines.forEach(line => {
-                    if (yPosition + 7 > doc.internal.pageSize.height - 20) {
-                        doc.addPage();
-                        yPosition = 20;
-                    }
-                    doc.text(line, margin, yPosition);
-                    yPosition += 7;
-                });
-            }
-
-            // Processar todo o texto com destaques
-            allHighlights.forEach((highlight, index) => {
-                // Adicionar texto normal antes do destaque
-                if (highlight.start > lastPosition) {
-                    addNormalText(lastPosition, highlight.start, text);
-                }
-                
-                // Adicionar texto destacado
-                addHighlightedText(highlight.start, highlight.end, text, highlight.type);
-                
-                lastPosition = highlight.end;
-            });
-
-            // Adicionar texto restante após o último destaque
-            if (lastPosition < text.length) {
-                addNormalText(lastPosition, text.length, text);
-            }
+            addText(previewText, { lineHeight: 6 });
 
             // SEÇÃO 6: RECOMENDAÇÕES DETALHADAS
             doc.addPage();
@@ -758,11 +1115,54 @@
         // ========== INICIALIZAÇÃO ==========
 
         document.addEventListener('DOMContentLoaded', function() {
-            // ... (mantenha todo o código de inicialização anterior)
-            
+            // Elementos da interface
+            const uploadArea = document.getElementById('uploadArea');
+            const fileInput = document.getElementById('fileInput');
+            const textInput = document.getElementById('textInput');
+            const analyzeBtn = document.getElementById('analyzeBtn');
+            const clearBtn = document.getElementById('clearBtn');
             const downloadPdfBtn = document.getElementById('downloadPdfBtn');
-            
-            // Substituir o event listener do botão PDF
+
+            // Event Listeners
+            uploadArea.addEventListener('click', () => fileInput.click());
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.style.background = '#eef2ff';
+                uploadArea.style.borderColor = '#764ba2';
+            });
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.style.background = '#f8f9ff';
+                uploadArea.style.borderColor = '#667eea';
+            });
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.style.background = '#f8f9ff';
+                uploadArea.style.borderColor = '#667eea';
+                
+                if (e.dataTransfer.files.length > 0) {
+                    fileInput.files = e.dataTransfer.files;
+                    textInput.value = ''; // Limpar textarea quando arquivo é selecionado
+                }
+            });
+
+            fileInput.addEventListener('change', () => {
+                if (fileInput.files.length > 0) {
+                    textInput.value = ''; // Limpar textarea quando arquivo é selecionado
+                }
+            });
+
+            // Botão Analisar Conteúdo - AGORA FUNCIONAL
+            analyzeBtn.addEventListener('click', analyzeContent);
+
+            // Botão Limpar
+            clearBtn.addEventListener('click', () => {
+                fileInput.value = '';
+                textInput.value = '';
+                document.getElementById('resultsContainer').style.display = 'none';
+                currentAnalysisResult = null;
+            });
+
+            // Botão Download PDF
             downloadPdfBtn.addEventListener('click', function() {
                 if (!currentAnalysisResult) {
                     alert('Nenhum resultado de análise disponível para gerar PDF.');
@@ -788,11 +1188,13 @@
                 }, 500);
             });
 
-            // ... (mantenha o resto do código de inicialização)
+            // Permitir análise com Enter no textarea
+            textInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && e.ctrlKey) {
+                    analyzeContent();
+                }
+            });
         });
-
-        // ... (mantenha todas as outras funções do código anterior)
-
     </script>
 </body>
 </html>
