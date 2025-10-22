@@ -8,6 +8,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
     <style>
+        /* Mantenha todo o CSS anterior aqui */
         * {
             margin: 0;
             padding: 0;
@@ -415,607 +416,383 @@
     <script>
         // ========== CONFIGURAÇÕES E PADRÕES ==========
         
-        // Variável global para armazenar resultados atuais
         let currentAnalysisResult = null;
 
-        // DETECÇÃO AUTOMÁTICA DE IDIOMA
-        function detectLanguage(text) {
-            const commonWords = {
-                'en': ['the', 'and', 'of', 'to', 'a', 'in', 'is', 'it', 'you', 'that'],
-                'pt': ['o', 'a', 'e', 'de', 'do', 'da', 'em', 'um', 'para', 'com'],
-                'es': ['el', 'la', 'de', 'que', 'y', 'en', 'un', 'es', 'se', 'no'],
-                'fr': ['le', 'la', 'de', 'et', 'à', 'en', 'un', 'une', 'est', 'pour']
+        // ... (mantenha todas as funções anteriores de detectLanguage, padrões, análise, etc.)
+
+        // ========== FUNÇÃO COMPLETA DO PDF ==========
+
+        function generateDetailedPDF() {
+            if (!currentAnalysisResult) {
+                alert('Nenhum resultado de análise disponível para gerar PDF.');
+                return;
+            }
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            const result = currentAnalysisResult;
+            
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('pt-BR');
+            const timeStr = now.toLocaleTimeString('pt-BR');
+            
+            let yPosition = 20;
+            const pageWidth = doc.internal.pageSize.width;
+            const margin = 20;
+            const contentWidth = pageWidth - (margin * 2);
+            
+            // Configurações de estilo
+            const styles = {
+                title: { fontSize: 16, fontWeight: 'bold' },
+                subtitle: { fontSize: 14, fontWeight: 'bold' },
+                normal: { fontSize: 12, fontWeight: 'normal' },
+                small: { fontSize: 10, fontWeight: 'normal' }
             };
 
-            const words = text.toLowerCase().split(/\s+/);
-            let scores = {};
-            
-            Object.keys(commonWords).forEach(lang => {
-                scores[lang] = 0;
-                commonWords[lang].forEach(word => {
-                    if (words.includes(word)) scores[lang]++;
-                });
-            });
+            // Função para adicionar texto com controle de quebra de página
+            function addText(text, options = {}) {
+                const {
+                    x = margin,
+                    maxWidth = contentWidth,
+                    fontSize = 12,
+                    fontWeight = 'normal',
+                    color = [0, 0, 0],
+                    lineHeight = 7
+                } = options;
 
-            const detectedLang = Object.keys(scores).reduce((a, b) => 
-                scores[a] > scores[b] ? a : b
-            );
+                doc.setFontSize(fontSize);
+                doc.setFont(undefined, fontWeight);
+                doc.setTextColor(...color);
 
-            return scores[detectedLang] > 2 ? detectedLang : 'other';
-        }
-
-        // PADRÕES FORTES DE IA
-        const universalAIPatterns = [
-            {
-                pattern: /\b(?:\+1|\+2|\+3|\+4)\b/g,
-                weight: 40,
-                description: "Marcadores de referência soltos - PADRÃO CHATGPT"
-            },
-            {
-                pattern: /\b(?:PMC|UNESCO|ResearchGate|Taylor & Francis|Internet Archive)\s*[\+\d]+\b/gi,
-                weight: 45,
-                description: "Referências com marcadores artificiais (+1, +2) - EXCLUSIVO DE IA"
-            },
-            {
-                pattern: /\b(?:\d+\.\s*\d*\.?\s*[A-Z][^.!?]{10,50}[.!?])/gi,
-                weight: 25,
-                description: "Estrutura de tópicos excessivamente numerada e organizada"
-            },
-            {
-                pattern: /\b(?:This paper|This article|Este artículo|Este artigo)\s+(?:aims to|argues for|postula que|defende que)\s+(?:a|an|the|um|uma)\s+(?:comprehensive|robust|tripartite|integral|robusto|tripartido)\s+(?:model|framework|modelo|marco)/gi,
-                weight: 30,
-                description: "Declaração de objetivo acadêmico excessivamente estruturada"
-            }
-        ];
-
-        // PADRÕES DE IA EM INGLÊS
-        const englishAIPatterns = [
-            {
-                pattern: /\b(?:moving beyond|going beyond)\s+simplistic notions of\s+\w+/gi,
-                weight: 23,
-                description: "Frase introdutória genérica de superação"
-            },
-            {
-                pattern: /\b(?:This (?:paper|article) (?:has argued|posits|postulates) that\s+)/gi,
-                weight: 21,
-                description: "Declaração de argumento padronizada"
-            }
-        ];
-
-        // PADRÕES DE IA EM ESPANHOL
-        const spanishAIPatterns = [
-            {
-                pattern: /\b(?:Yendo más allá de|Ir más allá de)\s+las? (?:nociones|ideas)\s+simplistas/gi,
-                weight: 23,
-                description: "Frase introdutória genérica em espanhol"
-            },
-            {
-                pattern: /\b(?:Este artículo (?:aboga por|postula|defiende)\s+un\s+(?:modelo|marco)\s+(?:integral|robusto|tripartito))/gi,
-                weight: 26,
-                description: "Declaração de objetivo padronizada em espanhol"
-            }
-        ];
-
-        // PADRÕES HUMANOS
-        const universalHumanPatterns = [
-            {
-                pattern: /[^.!?]{120,}[.!?]/g,
-                weight: 15,
-                description: "Frases longas e complexas com múltiplas ideias"
-            },
-            {
-                pattern: /(?:"[^"]*"|'[^']*')/g,
-                weight: 15,
-                description: "Citações diretas e diálogos"
-            },
-            {
-                pattern: /\b(?:perhaps|probably|possibly|apparently|eventually)\b/gi,
-                weight: 18,
-                description: "Expressões de incerteza e probabilidade"
-            }
-        ];
-
-        // ========== FUNÇÕES DE ANÁLISE ==========
-
-        function calculateLexicalRichness(text) {
-            const words = text.toLowerCase().split(/\s+/).filter(word => word.length > 2);
-            const uniqueWords = new Set(words);
-            return (uniqueWords.size / Math.max(words.length, 1)) * 100;
-        }
-
-        function analyzeSentenceVariety(text) {
-            const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
-            if (sentences.length < 3) return 0.5;
-            
-            const sentenceLengths = sentences.map(s => s.split(/\s+/).length);
-            const mean = sentenceLengths.reduce((a, b) => a + b, 0) / sentences.length;
-            const variance = sentenceLengths.reduce((sq, n) => sq + Math.pow(n - mean, 2), 0) / sentences.length;
-            
-            return Math.min(1.0, Math.sqrt(variance) / mean);
-        }
-
-        function detectAIPatterns(text, language) {
-            let totalScore = 0;
-            const detectedPatterns = [];
-            
-            // Padrões universais de IA
-            universalAIPatterns.forEach(patternObj => {
-                const matches = text.match(patternObj.pattern);
-                if (matches && matches.length > 0) {
-                    const score = Math.min(matches.length * patternObj.weight, 100);
-                    totalScore += score;
-                    
-                    detectedPatterns.push({
-                        pattern: patternObj.pattern.source.substring(0, 50) + '...',
-                        matches: matches.length,
-                        description: patternObj.description,
-                        examples: matches.slice(0, 3),
-                        score: score
-                    });
+                const lines = doc.splitTextToSize(text, maxWidth);
+                
+                // Verificar se precisa de nova página
+                if (yPosition + (lines.length * lineHeight) > doc.internal.pageSize.height - 20) {
+                    doc.addPage();
+                    yPosition = 20;
                 }
-            });
-            
-            // Padrões específicos por idioma
-            if (language === 'en') {
-                englishAIPatterns.forEach(patternObj => {
-                    const matches = text.match(patternObj.pattern);
-                    if (matches && matches.length > 0) {
-                        const score = Math.min(matches.length * patternObj.weight, 100);
-                        totalScore += score;
-                        
-                        detectedPatterns.push({
-                            pattern: patternObj.pattern.source.substring(0, 50) + '...',
-                            matches: matches.length,
-                            description: patternObj.description,
-                            examples: matches.slice(0, 3),
-                            score: score
-                        });
-                    }
-                });
+                
+                doc.text(lines, x, yPosition);
+                yPosition += lines.length * lineHeight;
+                
+                // Reset para estilo normal
+                doc.setFontSize(styles.normal.fontSize);
+                doc.setFont(undefined, styles.normal.fontWeight);
+                doc.setTextColor(0, 0, 0);
             }
-            
-            if (language === 'es') {
-                spanishAIPatterns.forEach(patternObj => {
-                    const matches = text.match(patternObj.pattern);
-                    if (matches && matches.length > 0) {
-                        const score = Math.min(matches.length * patternObj.weight, 100);
-                        totalScore += score;
-                        
-                        detectedPatterns.push({
-                            pattern: patternObj.pattern.source.substring(0, 50) + '...',
-                            matches: matches.length,
-                            description: patternObj.description,
-                            examples: matches.slice(0, 3),
-                            score: score
-                        });
-                    }
-                });
+
+            // Função para adicionar título
+            function addTitle(title, level = 1) {
+                const fontSize = level === 1 ? styles.title.fontSize : styles.subtitle.fontSize;
+                addText(title, { fontSize: fontSize, fontWeight: 'bold', lineHeight: 10 });
+                yPosition += 5;
             }
-            
-            return {
-                patterns: detectedPatterns,
-                totalScore: totalScore,
-                normalizedScore: Math.min(totalScore / 4, 85)
-            };
-        }
 
-        function detectHumanPatterns(text, language) {
-            let totalScore = 0;
-            const detectedPatterns = [];
+            // Cabeçalho do relatório
+            doc.setFillColor(44, 62, 80);
+            doc.rect(0, 0, pageWidth, 60, 'F');
             
-            universalHumanPatterns.forEach(patternObj => {
-                const matches = text.match(patternObj.pattern);
-                if (matches && matches.length > 0) {
-                    const score = Math.min(matches.length * patternObj.weight, 60);
-                    totalScore += score;
-                    
-                    detectedPatterns.push({
-                        pattern: patternObj.pattern.source.substring(0, 50) + '...',
-                        matches: matches.length,
-                        description: patternObj.description,
-                        examples: matches.slice(0, 3),
-                        score: score
-                    });
-                }
-            });
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(18);
+            doc.text("RELATÓRIO DE ANÁLISE - DETECTOR HUMANO vs IA", pageWidth / 2, 25, { align: 'center' });
+            doc.setFontSize(12);
+            doc.text(`Data da Análise: ${dateStr} ${timeStr}`, pageWidth / 2, 40, { align: 'center' });
+            doc.text("Relatório Completo com Destaques e Recomendações", pageWidth / 2, 50, { align: 'center' });
             
-            return {
-                patterns: detectedPatterns,
-                totalScore: totalScore,
-                normalizedScore: Math.min(totalScore / 8, 70)
-            };
-        }
+            yPosition = 70;
+            doc.setTextColor(0, 0, 0);
 
-        function calculateConfidence(textLength, humanScore, aiScore) {
-            let confidence = 70;
+            // SEÇÃO 1: RESULTADO PRINCIPAL
+            addTitle("RESULTADO DA ANÁLISE", 1);
             
-            if (textLength > 2500) confidence += 10;
-            if (textLength > 5000) confidence += 5;
-            if (textLength < 1000) confidence -= 10;
+            // Barra de probabilidade visual
+            const barWidth = contentWidth;
+            const barHeight = 15;
+            const humanWidth = (result.humanProbability / 100) * barWidth;
             
-            const scoreDifference = Math.abs(humanScore - aiScore);
-            if (scoreDifference > 50) confidence += 20;
-            if (scoreDifference > 30) confidence += 10;
-            if (scoreDifference < 15) confidence -= 10;
+            // Fundo da barra (IA)
+            doc.setFillColor(231, 76, 60);
+            doc.rect(margin, yPosition, barWidth, barHeight, 'F');
             
-            return Math.max(60, Math.min(95, confidence));
-        }
+            // Preenchimento humano
+            doc.setFillColor(39, 174, 96);
+            doc.rect(margin, yPosition, humanWidth, barHeight, 'F');
+            
+            // Texto na barra
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(10);
+            doc.text(`HUMANO: ${result.humanProbability}%`, margin + 5, yPosition + 10);
+            doc.text(`IA: ${result.aiProbability}%`, margin + barWidth - 30, yPosition + 10);
+            
+            yPosition += barHeight + 15;
+            doc.setTextColor(0, 0, 0);
 
-        // ========== FUNÇÕES AUXILIARES ==========
-
-        function generateTextHighlights(text, aiPatternAnalysis, humanPatternAnalysis) {
-            const highlights = {
-                aiPatterns: [],
-                humanElements: []
-            };
+            // Veredito
+            let verdictText = '';
+            let verdictColor = [0, 0, 0];
             
-            aiPatternAnalysis.patterns.forEach(pattern => {
-                if (pattern.examples && pattern.examples.length > 0) {
-                    pattern.examples.forEach(example => {
-                        const start = text.toLowerCase().indexOf(example.toLowerCase());
-                        if (start !== -1) {
-                            highlights.aiPatterns.push({
-                                start,
-                                end: start + example.length,
-                                text: example,
-                                description: pattern.description
-                            });
-                        }
-                    });
-                }
-            });
-            
-            humanPatternAnalysis.patterns.forEach(pattern => {
-                if (pattern.examples && pattern.examples.length > 0) {
-                    pattern.examples.forEach(example => {
-                        const start = text.toLowerCase().indexOf(example.toLowerCase());
-                        if (start !== -1) {
-                            highlights.humanElements.push({
-                                start,
-                                end: start + example.length,
-                                text: example,
-                                description: pattern.description
-                            });
-                        }
-                    });
-                }
-            });
-            
-            return highlights;
-        }
-
-        function generateSuggestions(humanProb, aiPatternAnalysis, humanPatternAnalysis, language) {
-            const suggestions = [];
-            
-            if (humanProb >= 70) {
-                suggestions.push('✅ Texto apresenta fortes características humanas');
-            } else if (humanProb >= 50) {
-                suggestions.push('📝 Texto apresenta características mistas');
-            } else if (humanProb >= 30) {
-                suggestions.push('🤖 Provável conteúdo gerado por IA');
+            if (result.humanProbability >= 70) {
+                verdictText = 'PROVÁVEL CONTEÚDO HUMANO';
+                verdictColor = [39, 174, 96];
+            } else if (result.humanProbability >= 50) {
+                verdictText = 'CARACTERÍSTICAS MISTAS';
+                verdictColor = [243, 156, 18];
+            } else if (result.humanProbability >= 30) {
+                verdictText = 'PROVÁVEL CONTEÚDO DE IA';
+                verdictColor = [231, 76, 60];
             } else {
-                suggestions.push('🚨 ALTA PROBABILIDADE DE CONTEÚDO DE IA');
+                verdictText = 'ALTA PROBABILIDADE DE CONTEÚDO DE IA';
+                verdictColor = [192, 57, 43];
             }
             
-            if (aiPatternAnalysis.patterns.length > 0) {
-                suggestions.push(`• ${aiPatternAnalysis.patterns.length} padrões de IA detectados`);
-            }
-            
-            return suggestions;
-        }
+            addText(verdictText, { fontWeight: 'bold', color: verdictColor, lineHeight: 8 });
+            addText(`Nível de Confiança: ${result.confidence}%`, { lineHeight: 6 });
 
-        function generateDetailedExplanation(metrics) {
-            const explanations = [];
+            // SEÇÃO 2: INFORMAÇÕES DO TEXTO
+            addTitle("INFORMAÇÕES DO TEXTO ANALISADO", 2);
             
-            if (metrics.aiPatternScore > 40) {
-                explanations.push('FORTES INDÍCIOS DE IA: Múltiplos padrões inequívocos detectados');
+            addText(`Idioma Detectado: ${result.detectedLanguage.toUpperCase()}`);
+            addText(`Tipo de Conteúdo: ${result.contentType}`);
+            addText(`Estatísticas: ${result.wordCount} palavras, ${result.sentenceCount} sentenças, ${result.paragraphCount} parágrafos`);
+            yPosition += 5;
+
+            // SEÇÃO 3: MÉTRICAS DETALHADAS
+            addTitle("MÉTRICAS DETALHADAS DA ANÁLISE", 2);
+            
+            const metrics = result.advancedMetrics;
+            addText(`Pontuação de Padrões de IA: ${metrics.aiPatternScore}%`);
+            addText(`Pontuação de Padrões Humanos: ${metrics.humanPatternScore}%`);
+            addText(`Riqueza Lexical: ${metrics.lexicalRichness}%`);
+            addText(`Variação de Frases: ${metrics.sentenceVariety}`);
+            addText(`Padrões de IA Detectados: ${metrics.strongAIPatterns}`);
+            addText(`Elementos Humanos Identificados: ${metrics.strongHumanPatterns}`);
+            yPosition += 5;
+
+            // SEÇÃO 4: PADRÕES DE IA DETECTADOS
+            if (result.aiPatternAnalysis.patterns.length > 0) {
+                addTitle("PADRÕES DE IA IDENTIFICADOS", 2);
+                
+                result.aiPatternAnalysis.patterns.forEach((pattern, index) => {
+                    addText(`${index + 1}. ${pattern.description}`, { fontWeight: 'bold' });
+                    addText(`   Ocorrências: ${pattern.matches}`, { fontSize: 10 });
+                    if (pattern.examples && pattern.examples.length > 0) {
+                        addText(`   Exemplo: "${pattern.examples[0]}"`, { fontSize: 10, color: [100, 100, 100] });
+                    }
+                    yPosition += 3;
+                });
             }
+
+            // SEÇÃO 5: TEXTO COMPLETO COM DESTAQUES
+            addTitle("TEXTO ANALISADO COM DESTAQUES", 1);
             
-            if (metrics.humanPatternScore > 20) {
-                explanations.push('Alguns elementos humanos presentes');
+            // Legenda de cores
+            addText("LEGENDA DE CORES:", { fontWeight: 'bold' });
+            
+            // Legenda para IA
+            doc.setFillColor(248, 215, 218);
+            doc.rect(margin, yPosition, 8, 8, 'F');
+            addText(" Padrões de IA detectados", { x: margin + 12 });
+            yPosition += 10;
+            
+            // Legenda para Humano
+            doc.setFillColor(212, 237, 218);
+            doc.rect(margin, yPosition, 8, 8, 'F');
+            addText(" Elementos humanos identificados", { x: margin + 12 });
+            yPosition += 15;
+
+            // Texto com destaques
+            addText("TEXTO COMPLETO:", { fontWeight: 'bold' });
+            yPosition += 5;
+
+            // Processar o texto com destaques
+            const text = result.analyzedText;
+            const highlights = result.textHighlights;
+            
+            // Ordenar destaques por posição
+            const allHighlights = [
+                ...highlights.aiPatterns.map(h => ({...h, type: 'ai'})),
+                ...highlights.humanElements.map(h => ({...h, type: 'human'}))
+            ].sort((a, b) => a.start - b.start);
+
+            let lastPosition = 0;
+            const maxCharsPerPage = 2000; // Limite de caracteres por página para evitar sobrecarga
+
+            // Função para adicionar texto destacado
+            function addHighlightedText(start, end, text, type) {
+                const segment = text.substring(start, end);
+                const lines = doc.splitTextToSize(segment, contentWidth);
+                
+                lines.forEach((line, lineIndex) => {
+                    if (yPosition + 7 > doc.internal.pageSize.height - 20) {
+                        doc.addPage();
+                        yPosition = 20;
+                    }
+                    
+                    // Aplicar cor de fundo baseada no tipo
+                    if (type === 'ai') {
+                        doc.setFillColor(248, 215, 218); // Vermelho claro para IA
+                    } else {
+                        doc.setFillColor(212, 237, 218); // Verde claro para humano
+                    }
+                    
+                    const textWidth = doc.getTextWidth(line);
+                    doc.rect(margin, yPosition - 5, textWidth + 2, 7, 'F');
+                    
+                    doc.setTextColor(0, 0, 0);
+                    doc.text(line, margin, yPosition);
+                    yPosition += 7;
+                });
             }
+
+            // Adicionar texto normal
+            function addNormalText(start, end, text) {
+                const segment = text.substring(start, end);
+                const lines = doc.splitTextToSize(segment, contentWidth);
+                
+                lines.forEach(line => {
+                    if (yPosition + 7 > doc.internal.pageSize.height - 20) {
+                        doc.addPage();
+                        yPosition = 20;
+                    }
+                    doc.text(line, margin, yPosition);
+                    yPosition += 7;
+                });
+            }
+
+            // Processar todo o texto com destaques
+            allHighlights.forEach((highlight, index) => {
+                // Adicionar texto normal antes do destaque
+                if (highlight.start > lastPosition) {
+                    addNormalText(lastPosition, highlight.start, text);
+                }
+                
+                // Adicionar texto destacado
+                addHighlightedText(highlight.start, highlight.end, text, highlight.type);
+                
+                lastPosition = highlight.end;
+            });
+
+            // Adicionar texto restante após o último destaque
+            if (lastPosition < text.length) {
+                addNormalText(lastPosition, text.length, text);
+            }
+
+            // SEÇÃO 6: RECOMENDAÇÕES DETALHADAS
+            doc.addPage();
+            yPosition = 20;
             
-            if (metrics.humanProbability <= 20) {
-                explanations.push('ANÁLISE CONCLUSIVA: Padrões característicos de IA generativa');
-            } else if (metrics.humanProbability <= 40) {
-                explanations.push('EVIDÊNCIAS FORTES de autoria por IA');
-            } else if (metrics.humanProbability >= 70) {
-                explanations.push('Predominância de características humanas');
+            addTitle("RECOMENDAÇÕES PARA MELHORIA", 1);
+            
+            // Recomendações gerais baseadas na probabilidade
+            addText("RECOMENDAÇÕES GERAIS:", { fontWeight: 'bold' });
+            yPosition += 3;
+            
+            if (result.humanProbability < 50) {
+                addText("• Considere reescrever completamente o texto");
+                addText("• Adicione mais expressões de opinião pessoal");
+                addText("• Varie a estrutura das frases e parágrafos");
+                addText("• Inclua exemplos específicos e experiências pessoais");
+                addText("• Evite estruturas padronizadas e formulaicas");
+            } else if (result.humanProbability < 70) {
+                addText("• Revise as seções com padrões de IA identificados");
+                addText("• Enriqueça o texto com mais elementos pessoais");
+                addText("• Diversifique o vocabulário e estruturas sintáticas");
             } else {
-                explanations.push('Características mistas com tendência para IA');
+                addText("• Mantenha o estilo autêntico e pessoal");
+                addText("• Continue utilizando expressões de opinião própria");
             }
             
-            return explanations;
+            yPosition += 10;
+
+            // Recomendações específicas para padrões detectados
+            if (result.aiPatternAnalysis.patterns.length > 0) {
+                addText("RECOMENDAÇÕES ESPECÍFICAS PARA PADRÕES DETECTADOS:", { fontWeight: 'bold' });
+                yPosition += 3;
+                
+                result.aiPatternAnalysis.patterns.forEach((pattern, index) => {
+                    addText(`${index + 1}. Para: ${pattern.description}`, { fontWeight: 'bold', fontSize: 11 });
+                    
+                    if (pattern.description.includes('estrutura') || pattern.description.includes('padronizada')) {
+                        addText("   - Quebre a estrutura repetitiva", { fontSize: 10 });
+                        addText("   - Use transições mais naturais", { fontSize: 10 });
+                        addText("   - Varie o início das frases", { fontSize: 10 });
+                    } else if (pattern.description.includes('conclusão') || pattern.description.includes('transição')) {
+                        addText("   - Use fórmulas de conclusão mais criativas", { fontSize: 10 });
+                        addText("   - Evite frases de transição genéricas", { fontSize: 10 });
+                    } else {
+                        addText("   - Reescreva as seções identificadas", { fontSize: 10 });
+                        addText("   - Adicione elementos pessoais", { fontSize: 10 });
+                    }
+                    yPosition += 5;
+                });
+            }
+
+            // SEÇÃO 7: GUIA DE RESSRITA
+            yPosition += 10;
+            addTitle("GUIA PRÁTICO PARA RESSRITA", 2);
+            
+            addText("ESTRATÉGIAS PARA TORNAR O TEXTO MAIS AUTÊNTICO:", { fontWeight: 'bold' });
+            addText("1. Adicione opiniões pessoais e perspectivas únicas");
+            addText("2. Use exemplos concretos e experiências específicas");
+            addText("3. Varie o comprimento e estrutura das frases");
+            addText("4. Inclua hesitações, dúvidas e processos de pensamento");
+            addText("5. Use um vocabulário mais específico e menos genérico");
+            addText("6. Adicione referências culturais e contextuais pessoais");
+            addText("7. Evite fórmulas linguísticas previsíveis");
+
+            // Rodapé em todas as páginas
+            const totalPages = doc.internal.getNumberOfPages();
+            for (let i = 1; i <= totalPages; i++) {
+                doc.setPage(i);
+                doc.setFontSize(8);
+                doc.setTextColor(100, 100, 100);
+                doc.text(`Relatório Gerado por Detector Multilíngue - Página ${i} de ${totalPages}`, 
+                        pageWidth / 2, doc.internal.pageSize.height - 10, { align: 'center' });
+            }
+
+            // Salvar o PDF
+            const fileName = `relatorio-analise-ia-${dateStr.replace(/\//g, '-')}-${timeStr.replace(/:/g, '-')}.pdf`;
+            doc.save(fileName);
         }
 
-        // ========== FUNÇÃO PRINCIPAL DE ANÁLISE ==========
-
-        async function advancedAnalyzeContent(text, contentType) {
-            const selectedLanguage = document.getElementById('languageSelect').value;
-            const detectedLanguage = selectedLanguage === 'auto' ? detectLanguage(text) : selectedLanguage;
-            
-            // Simular processamento
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            
-            const wordCount = text.split(/\s+/).length;
-            const sentenceCount = text.split(/[.!?]+/).length - 1;
-            const paragraphCount = text.split(/\n\s*\n/).length;
-            
-            const lexicalRichness = calculateLexicalRichness(text);
-            const sentenceVariety = analyzeSentenceVariety(text);
-            const aiPatternAnalysis = detectAIPatterns(text, detectedLanguage);
-            const humanPatternAnalysis = detectHumanPatterns(text, detectedLanguage);
-            
-            // CÁLCULO DO SCORE
-            let humanScore = 50;
-            
-            humanScore -= aiPatternAnalysis.normalizedScore;
-            humanScore += humanPatternAnalysis.normalizedScore;
-            
-            if (lexicalRichness > 35) humanScore += 8;
-            else if (lexicalRichness > 25) humanScore += 4;
-            else if (lexicalRichness < 10) humanScore -= 5;
-            
-            if (sentenceVariety > 0.7) humanScore += 6;
-            else if (sentenceVariety > 0.5) humanScore += 3;
-            else if (sentenceVariety < 0.3) humanScore -= 4;
-            
-            const humanProbability = Math.max(5, Math.min(90, humanScore));
-            const confidence = calculateConfidence(text.length, humanPatternAnalysis.normalizedScore, aiPatternAnalysis.normalizedScore);
-            
-            const textHighlights = generateTextHighlights(text, aiPatternAnalysis, humanPatternAnalysis);
-            const suggestions = generateSuggestions(humanProbability, aiPatternAnalysis, humanPatternAnalysis, detectedLanguage);
-            
-            return {
-                humanProbability,
-                aiProbability: 100 - humanProbability,
-                analyzedText: text,
-                wordCount,
-                sentenceCount,
-                paragraphCount,
-                contentType,
-                detectedLanguage,
-                confidence,
-                advancedMetrics: {
-                    aiPatternScore: Math.round(aiPatternAnalysis.normalizedScore),
-                    humanPatternScore: Math.round(humanPatternAnalysis.normalizedScore),
-                    lexicalRichness: Math.round(lexicalRichness),
-                    sentenceVariety: Math.round(sentenceVariety * 100) / 100,
-                    strongAIPatterns: aiPatternAnalysis.patterns.length,
-                    strongHumanPatterns: humanPatternAnalysis.patterns.length
-                },
-                aiPatternAnalysis: aiPatternAnalysis,
-                humanPatternAnalysis: humanPatternAnalysis,
-                textHighlights,
-                suggestions,
-                detailedExplanation: generateDetailedExplanation({
-                    humanProbability, 
-                    aiPatternScore: aiPatternAnalysis.normalizedScore,
-                    humanPatternScore: humanPatternAnalysis.normalizedScore,
-                    lexicalRichness,
-                    sentenceVariety,
-                    aiPatterns: aiPatternAnalysis.patterns,
-                    humanPatterns: humanPatternAnalysis.patterns,
-                    language: detectedLanguage
-                })
-            };
-        }
-
-        // ========== INTERFACE E CONTROLES ==========
+        // ========== INICIALIZAÇÃO ==========
 
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('Página carregada - inicializando...');
+            // ... (mantenha todo o código de inicialização anterior)
             
-            const uploadArea = document.getElementById('uploadArea');
-            const fileInput = document.getElementById('fileInput');
-            const textInput = document.getElementById('textInput');
-            const analyzeBtn = document.getElementById('analyzeBtn');
-            const clearBtn = document.getElementById('clearBtn');
-            const loading = document.getElementById('loading');
-            const resultsContainer = document.getElementById('resultsContainer');
-
-            // Event Listeners principais
-            analyzeBtn.addEventListener('click', startAnalysis);
-            clearBtn.addEventListener('click', clearAll);
-            uploadArea.addEventListener('click', () => fileInput.click());
-
-            async function startAnalysis() {
-                console.log('=== INICIANDO ANÁLISE ===');
-                
-                const file = fileInput.files[0];
-                const text = textInput.value.trim();
-                
-                if (!file && !text) {
-                    alert('Por favor, selecione um arquivo ou cole um texto para análise.');
-                    return;
-                }
-                
-                if (text.length < 50) {
-                    alert('Texto muito curto. Forneça um texto com pelo menos 50 caracteres.');
-                    return;
-                }
-                
-                loading.style.display = 'block';
-                resultsContainer.style.display = 'none';
-                
-                try {
-                    let content = text;
-                    
-                    const analysisResult = await advancedAnalyzeContent(content, document.getElementById('contentType').value);
-                    currentAnalysisResult = analysisResult;
-                    displayResults(analysisResult);
-                    
-                    console.log('Análise concluída com sucesso!');
-                    
-                } catch (error) {
-                    console.error('Erro na análise:', error);
-                    alert('Erro ao analisar o conteúdo: ' + error.message);
-                } finally {
-                    loading.style.display = 'none';
-                    resultsContainer.style.display = 'block';
-                }
-            }
-
-            function displayResults(result) {
-                console.log('Exibindo resultados:', result);
-                
-                // Barra de probabilidade
-                const humanProbBar = document.getElementById('humanProbabilityBar');
-                humanProbBar.style.width = `${result.humanProbability}%`;
-                
-                // Texto de probabilidade
-                const probText = document.getElementById('probabilityText');
-                let verdictText = '';
-                let verdictColor = '';
-                let confidenceClass = '';
-                
-                if (result.confidence >= 80) confidenceClass = 'high-confidence';
-                else if (result.confidence >= 60) confidenceClass = 'medium-confidence';
-                else confidenceClass = 'low-confidence';
-                
-                if (result.humanProbability >= 70) {
-                    verdictText = 'PROVÁVEL CONTEÚDO HUMANO';
-                    verdictColor = '#27ae60';
-                } else if (result.humanProbability >= 50) {
-                    verdictText = 'CARACTERÍSTICAS MISTAS';
-                    verdictColor = '#f39c12';
-                } else if (result.humanProbability >= 30) {
-                    verdictText = 'PROVÁVEL CONTEÚDO DE IA';
-                    verdictColor = '#e74c3c';
-                } else {
-                    verdictText = 'ALTA PROBABILIDADE DE IA';
-                    verdictColor = '#c0392b';
-                }
-                
-                probText.innerHTML = `
-                    <span style="color: ${verdictColor}">${verdictText}</span>
-                    <span class="confidence-indicator ${confidenceClass}">Confiança: ${result.confidence}%</span><br>
-                    <small>Humano: ${result.humanProbability}% | IA: ${result.aiProbability}%</small>
-                `;
-                
-                // Métricas avançadas
-                const metricsContainer = document.getElementById('advancedMetrics');
-                metricsContainer.innerHTML = `
-                    <div class="metric-card">
-                        <div>Padrões IA</div>
-                        <div class="metric-value">${Math.round(result.advancedMetrics.aiPatternScore)}%</div>
-                        <small>${result.advancedMetrics.aiPatternScore >= 50 ? 'Alto' : 'Moderado'}</small>
-                    </div>
-                    <div class="metric-card">
-                        <div>Padrões Humanos</div>
-                        <div class="metric-value">${Math.round(result.advancedMetrics.humanPatternScore)}%</div>
-                        <small>${result.advancedMetrics.humanPatternScore >= 50 ? 'Alto' : 'Moderado'}</small>
-                    </div>
-                    <div class="metric-card">
-                        <div>Riqueza Lexical</div>
-                        <div class="metric-value">${Math.round(result.advancedMetrics.lexicalRichness)}%</div>
-                        <small>${result.advancedMetrics.lexicalRichness >= 30 ? 'Alta' : 'Média'}</small>
-                    </div>
-                    <div class="metric-card">
-                        <div>Variação Frasal</div>
-                        <div class="metric-value">${result.advancedMetrics.sentenceVariety}</div>
-                        <small>${result.advancedMetrics.sentenceVariety >= 0.6 ? 'Alta' : 'Média'}</small>
-                    </div>
-                `;
-                
-                // Detalhes da análise
-                const analysisDetails = document.getElementById('analysisDetails');
-                analysisDetails.innerHTML = `
-                    <div class="detail-item">
-                        <strong>Idioma Detectado:</strong> ${result.detectedLanguage.toUpperCase()}
-                    </div>
-                    <div class="detail-item">
-                        <strong>Tipo de Conteúdo:</strong> ${result.contentType}
-                    </div>
-                    <div class="detail-item">
-                        <strong>Estatísticas:</strong> ${result.wordCount} palavras, ${result.sentenceCount} sentenças
-                    </div>
-                    <div class="detail-item">
-                        <strong>Detalhes:</strong> ${result.detailedExplanation.join('; ')}
-                    </div>
-                `;
-                
-                // Texto
-                const textPreview = document.getElementById('textPreview');
-                textPreview.innerHTML = `<p>${result.analyzedText}</p>`;
-                
-                // Sugestões
-                const suggestionsDiv = document.getElementById('suggestions');
-                suggestionsDiv.innerHTML = `
-                    <h4>Análise e Recomendações:</h4>
-                    <ul>
-                        ${result.suggestions.map(suggestion => `<li>${suggestion}</li>`).join('')}
-                    </ul>
-                `;
-            }
-
-            function clearAll() {
-                fileInput.value = '';
-                textInput.value = '';
-                resultsContainer.style.display = 'none';
-                currentAnalysisResult = null;
-                
-                uploadArea.innerHTML = `
-                    <i>📄</i>
-                    <h3>Arraste e solte arquivos aqui</h3>
-                    <p>ou clique para selecionar</p>
-                    <p>Formatos suportados: PDF, DOCX, DOC, TXT</p>
-                `;
-            }
-
-            // Event listeners adicionais
-            uploadArea.addEventListener('dragover', function(e) {
-                e.preventDefault();
-                uploadArea.style.background = '#eef2ff';
-            });
-
-            uploadArea.addEventListener('drop', function(e) {
-                e.preventDefault();
-                uploadArea.style.background = '#f8f9ff';
-                
-                const files = e.dataTransfer.files;
-                if (files.length > 0) {
-                    fileInput.files = files;
-                    handleFileSelection(files[0]);
-                }
-            });
-
-            fileInput.addEventListener('change', function(e) {
-                if (e.target.files.length > 0) {
-                    handleFileSelection(e.target.files[0]);
-                }
-            });
-
-            function handleFileSelection(file) {
-                const fileName = file.name;
-                const fileExtension = fileName.split('.').pop().toLowerCase();
-                
-                const validExtensions = ['pdf', 'docx', 'doc', 'txt'];
-                if (!validExtensions.includes(fileExtension)) {
-                    alert('Tipo de arquivo não suportado. Use PDF, DOCX, DOC ou TXT.');
-                    return;
-                }
-                
-                textInput.value = '';
-                
-                uploadArea.innerHTML = `
-                    <i>✅</i>
-                    <h3>Arquivo selecionado:</h3>
-                    <p><strong>${fileName}</strong></p>
-                    <p>Clique em "Analisar Conteúdo" para continuar</p>
-                `;
-            }
-
-            document.getElementById('downloadPdfBtn').addEventListener('click', function() {
+            const downloadPdfBtn = document.getElementById('downloadPdfBtn');
+            
+            // Substituir o event listener do botão PDF
+            downloadPdfBtn.addEventListener('click', function() {
                 if (!currentAnalysisResult) {
                     alert('Nenhum resultado de análise disponível para gerar PDF.');
                     return;
                 }
-                alert('Funcionalidade PDF será implementada em breve!');
+                
+                // Mostrar loading
+                const loading = document.getElementById('loading');
+                const originalDisplay = loading.style.display;
+                loading.style.display = 'block';
+                loading.querySelector('p').textContent = 'Gerando relatório PDF completo...';
+                
+                setTimeout(() => {
+                    try {
+                        generateDetailedPDF();
+                    } catch (error) {
+                        console.error('Erro ao gerar PDF:', error);
+                        alert('Erro ao gerar o relatório PDF: ' + error.message);
+                    } finally {
+                        loading.style.display = originalDisplay;
+                        loading.querySelector('p').textContent = 'Analisando conteúdo com métricas multilíngues avançadas...';
+                    }
+                }, 500);
             });
 
-            console.log('Inicialização completa - pronto para uso!');
+            // ... (mantenha o resto do código de inicialização)
         });
+
+        // ... (mantenha todas as outras funções do código anterior)
+
     </script>
 </body>
 </html>
