@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multilingual AI Content Detector</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <style>
+        /* Mantenha todo o CSS anterior (omito para brevidade) */
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Multilingual AI Content Detector</h1>
+            <p>Focus on unequivocal generative AI patterns across languages</p>
+        </header>
+
+        <div class="main-content">
+            <div class="upload-section">
+                <h2>Submit Content for Analysis</h2>
+                <div class="upload-area" id="uploadArea">
+                    <i>📄</i>
+                    <h3>Drag and drop files here</h3>
+                    <p>or click to select</p>
+                    <p>Supported formats: PDF, DOCX, DOC, TXT</p>
+                    <input type="file" id="fileInput" class="file-input" accept=".pdf,.docx,.doc,.txt">
+                </div>
+                
+                <div>
+                    <h3>Or paste text below:</h3>
+                    <textarea id="textInput" placeholder="Paste your text here for analysis..." rows="10" style="width: 100%; padding: 15px; border: 1px solid #ddd; border-radius: 8px; margin: 10px 0; font-family: inherit;"></textarea>
+                </div>
+                
+                <div>
+                    <h3>Content Type:</h3>
+                    <select id="contentType" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; margin: 10px 0;">
+                        <option value="academic">Academic</option>
+                        <option value="creative">Creative</option>
+                        <option value="technical">Technical</option>
+                        <option value="business">Business</option>
+                        <option value="casual">Casual</option>
+                    </select>
+                </div>
+
+                <div>
+                    <h3>Language Detection:</h3>
+                    <select id="languageSelect" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; margin: 10px 0;">
+                        <option value="auto">Auto-detect</option>
+                        <option value="en">English</option>
+                        <option value="pt">Portuguese</option>
+                        <option value="es">Spanish</option>
+                        <option value="fr">French</option>
+                        <option value="de">German</option>
+                        <option value="it">Italian</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                
+                <button class="btn" id="analyzeBtn">Analyze Content</button>
+                <button class="btn btn-secondary" id="clearBtn">Clear</button>
+            </div>
+
+            <div class="results-section">
+                <h2>Analysis Results</h2>
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <p>Analyzing content with advanced multilingual metrics...</p>
+                </div>
+                
+                <div class="results-container" id="resultsContainer">
+                    <!-- Mantenha a estrutura de resultados existente -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Variável global para armazenar resultados atuais
+        let currentAnalysisResult = null;
+
+        // DETECÇÃO AUTOMÁTICA DE IDIOMA
+        function detectLanguage(text) {
+            const commonWords = {
+                'en': ['the', 'and', 'of', 'to', 'a', 'in', 'is', 'it', 'you', 'that'],
+                'pt': ['o', 'a', 'e', 'de', 'do', 'da', 'em', 'um', 'para', 'com'],
+                'es': ['el', 'la', 'de', 'que', 'y', 'en', 'un', 'es', 'se', 'no'],
+                'fr': ['le', 'la', 'de', 'et', 'à', 'en', 'un', 'une', 'est', 'pour'],
+                'de': ['der', 'die', 'das', 'und', 'in', 'den', 'von', 'zu', 'ist', 'sich'],
+                'it': ['il', 'la', 'e', 'di', 'che', 'in', 'un', 'una', 'per', 'con']
+            };
+
+            const words = text.toLowerCase().split(/\s+/);
+            let scores = {};
+            
+            Object.keys(commonWords).forEach(lang => {
+                scores[lang] = 0;
+                commonWords[lang].forEach(word => {
+                    if (words.includes(word)) scores[lang]++;
+                });
+            });
+
+            const detectedLang = Object.keys(scores).reduce((a, b) => 
+                scores[a] > scores[b] ? a : b
+            );
+
+            return scores[detectedLang] > 2 ? detectedLang : 'other';
+        }
+
+        // PADRÕES UNIVERSAIS DE IA (funcionam em qualquer idioma)
+        const universalAIPatterns = [
+            {
+                pattern: /\b(?:\+1|\+2|\+3|\+4)\b/g,
+                weight: 40,
+                description: "Loose reference markers - CHATGPT PATTERN"
+            },
+            {
+                pattern: /\b(?:PMC|UNESCO|ResearchGate|Taylor & Francis|Internet Archive)\s*[\+\d]+\b/gi,
+                weight: 45,
+                description: "References with artificial markers (+1, +2) - AI EXCLUSIVE"
+            },
+            {
+                pattern: /\.\s*(?:PMC|UNESCO|ResearchGate)\s*$/gm,
+                weight: 40,
+                description: "Loose references at sentence ends - AI ARTIFACT"
+            },
+            {
+                pattern: /\([^)]*\)\s*(?:PMC|UNESCO|ResearchGate)/gi,
+                weight: 35,
+                description: "Parenthetical references with markers"
+            },
+            {
+                pattern: /\b(?:furthermore|moreover|additionally|however|therefore|consequently)\s*,\s*\b(?:furthermore|moreover|additionally|however|therefore|consequently)/gi,
+                weight: 25,
+                description: "Repetitive transitional phrases"
+            },
+            {
+                pattern: /\b(?:it is important to note that|it should be noted that|it is worth mentioning that)\b/gi,
+                weight: 20,
+                description: "Generic academic filler phrases"
+            },
+            {
+                pattern: /\b(?:this (?:study|paper|research) (?:aims to|seeks to|attempts to)\b/gi,
+                weight: 18,
+                description: "Generic academic objective structures"
+            }
+        ];
+
+        // PADRÕES DE IA ESPECÍFICOS POR IDIOMA
+        const languageSpecificAIPatterns = {
+            'en': [
+                {
+                    pattern: /\b(?:In conclusion|To summarize|In summary)\s*,\s*\b(?:this|the)\b/gi,
+                    weight: 22,
+                    description: "Standardized conclusion phrases - ENGLISH AI"
+                },
+                {
+                    pattern: /\b(?:It is recommended that|It is suggested that)\s+(?:further|additional)\b/gi,
+                    weight: 20,
+                    description: "Impersonal recommendation structures - ENGLISH AI"
+                }
+            ],
+            'pt': [
+                {
+                    pattern: /\b(?:Conclui-se que|Recomenda-se que|Sugere-se que)\b/gi,
+                    weight: 22,
+                    description: "Estruturas impessoais padronizadas - IA PORTUGUÊS"
+                },
+                {
+                    pattern: /\b(?:este|o presente)\s+(?:artigo|estudo)\s+(?:tem como objetivo|busca|visa)\b/gi,
+                    weight: 20,
+                    description: "Estrutura genérica de objetivo acadêmico - IA PORTUGUÊS"
+                }
+            ],
+            'es': [
+                {
+                    pattern: /\b(?:Se concluye que|Se recomienda que|Se sugiere que)\b/gi,
+                    weight: 22,
+                    description: "Estructuras impersonales estandarizadas - IA ESPAÑOL"
+                },
+                {
+                    pattern: /\b(?:este|el presente)\s+(?:artículo|estudio)\s+(?:tiene como objetivo|busca|pretende)\b/gi,
+                    weight: 20,
+                    description: "Estructura genérica de objetivo académico - IA ESPAÑOL"
+                }
+            ],
+            'fr': [
+                {
+                    pattern: /\b(?:On conclut que|Il est recommandé que|Il est suggéré que)\b/gi,
+                    weight: 22,
+                    description: "Structures impersonnelles standardisées - IA FRANÇAIS"
+                },
+                {
+                    pattern: /\b(?:cet|le présent)\s+(?:article|étude)\s+(?:a pour objectif|cherche|vise)\b/gi,
+                    weight: 20,
+                    description: "Structure générique d'objectif académique - IA FRANÇAIS"
+                }
+            ]
+        };
+
+        // PADRÕES HUMANOS UNIVERSAIS
+        const universalHumanPatterns = [
+            {
+                pattern: /[^.!?]{120,}[.!?]/g,
+                weight: 15,
+                description: "Long complex sentences with multiple ideas"
+            },
+            {
+                pattern: /(?:"[^"]*"|'[^']*')/g,
+                weight: 15,
+                description: "Direct quotations and dialogues"
+            },
+            {
+                pattern: /[A-Za-z]+\set\s\.[A-Za-z]/g,
+                weight: 12,
+                description: "Academic abbreviations with 'et al.'"
+            },
+            {
+                pattern: /[!?]{2,}/g,
+                weight: 10,
+                description: "Expressive punctuation (rare in AI)"
+            },
+            {
+                pattern: /\b(?:perhaps|probably|possibly|apparently|eventually)\b/gi,
+                weight: 18,
+                description: "Expressions of uncertainty and probability"
+            },
+            {
+                pattern: /\b(?:unfortunately|fortunately|interestingly|surprisingly|curiously)\b/gi,
+                weight: 20,
+                description: "Expressions of subjective evaluation"
+            }
+        ];
+
+        // PADRÕES HUMANOS ESPECÍFICOS POR IDIOMA
+        const languageSpecificHumanPatterns = {
+            'en': [
+                {
+                    pattern: /\b(?:I think|I believe|in my opinion|from my perspective|it seems to me)\b/gi,
+                    weight: 30,
+                    description: "Explicit personal opinion expressions - STRONG HUMAN INDICATOR"
+                },
+                {
+                    pattern: /\b(?:we observe|we notice|we feel|we believe|we question)\b/gi,
+                    weight: 25,
+                    description: "Personal observation and positioning"
+                }
+            ],
+            'pt': [
+                {
+                    pattern: /\b(?:parece-me|ao meu ver|na minha opinião|do meu ponto de vista|penso que|acho que)\b/gi,
+                    weight: 30,
+                    description: "Expressões de opinião pessoal explícita - FORTE INDICADOR HUMANO"
+                },
+                {
+                    pattern: /\b(?:observamos|percebemos|sentimos|acreditamos|questionamos)\b/gi,
+                    weight: 25,
+                    description: "Expressões de observação e posicionamento pessoal"
+                }
+            ],
+            'es': [
+                {
+                    pattern: /\b(?:me parece|en mi opinión|desde mi punto de vista|pienso que|creo que)\b/gi,
+                    weight: 30,
+                    description: "Expresiones de opinión personal explícita - FUERTE INDICADOR HUMANO"
+                },
+                {
+                    pattern: /\b(?:observamos|notamos|sentimos|creemos|cuestionamos)\b/gi,
+                    weight: 25,
+                    description: "Expresiones de observación y posicionamiento personal"
+                }
+            ],
+            'fr': [
+                {
+                    pattern: /\b(?:il me semble|à mon avis|de mon point de vue|je pense que|je crois que)\b/gi,
+                    weight: 30,
+                    description: "Expressions d'opinion personnelle explicite - FORT INDICATEUR HUMAIN"
+                },
+                {
+                    pattern: /\b(?:nous observons|nous remarquons|nous sentons|nous croyons|nous questionnons)\b/gi,
+                    weight: 25,
+                    description: "Expressions d'observation et de positionnement personnel"
+                }
+            ]
+        };
+
+        // Função para detectar padrões com base no idioma
+        function detectAIPatterns(text, language) {
+            let totalScore = 0;
+            const detectedPatterns = [];
+            
+            // Padrões universais
+            universalAIPatterns.forEach(patternObj => {
+                const matches = text.match(patternObj.pattern);
+                if (matches && matches.length > 0) {
+                    const score = Math.min(matches.length * patternObj.weight, 100);
+                    totalScore += score;
+                    
+                    detectedPatterns.push({
+                        pattern: patternObj.pattern.source.substring(0, 50) + '...',
+                        matches: matches.length,
+                        description: patternObj.description,
+                        examples: matches.slice(0, 5),
+                        score: score
+                    });
+                }
+            });
+            
+            // Padrões específicos do idioma
+            if (languageSpecificAIPatterns[language]) {
+                languageSpecificAIPatterns[language].forEach(patternObj => {
+                    const matches = text.match(patternObj.pattern);
+                    if (matches && matches.length > 0) {
+                        const score = Math.min(matches.length * patternObj.weight, 100);
+                        totalScore += score;
+                        
+                        detectedPatterns.push({
+                            pattern: patternObj.pattern.source.substring(0, 50) + '...',
+                            matches: matches.length,
+                            description: patternObj.description,
+                            examples: matches.slice(0, 5),
+                            score: score
+                        });
+                    }
+                });
+            }
+            
+            return {
+                patterns: detectedPatterns,
+                totalScore: totalScore,
+                normalizedScore: Math.min(totalScore / 5, 80)
+            };
+        }
+
+        function detectHumanPatterns(text, language) {
+            let totalScore = 0;
+            const detectedPatterns = [];
+            
+            // Padrões universais
+            universalHumanPatterns.forEach(patternObj => {
+                const matches = text.match(patternObj.pattern);
+                if (matches && matches.length > 0) {
+                    const score = Math.min(matches.length * patternObj.weight, 60);
+                    totalScore += score;
+                    
+                    detectedPatterns.push({
+                        pattern: patternObj.pattern.source.substring(0, 50) + '...',
+                        matches: matches.length,
+                        description: patternObj.description,
+                        examples: matches.slice(0, 3),
+                        score: score
+                    });
+                }
+            });
+            
+            // Padrões específicos do idioma
+            if (languageSpecificHumanPatterns[language]) {
+                languageSpecificHumanPatterns[language].forEach(patternObj => {
+                    const matches = text.match(patternObj.pattern);
+                    if (matches && matches.length > 0) {
+                        const score = Math.min(matches.length * patternObj.weight, 60);
+                        totalScore += score;
+                        
+                        detectedPatterns.push({
+                            pattern: patternObj.pattern.source.substring(0, 50) + '...',
+                            matches: matches.length,
+                            description: patternObj.description,
+                            examples: matches.slice(0, 3),
+                            score: score
+                        });
+                    }
+                });
+            }
+            
+            return {
+                patterns: detectedPatterns,
+                totalScore: totalScore,
+                normalizedScore: Math.min(totalScore / 8, 70)
+            };
+        }
+
+        // Inicialização quando a página carrega
+        document.addEventListener('DOMContentLoaded', function() {
+            // ... (mantenha todo o código de inicialização existente)
+
+            // Modifique a função advancedAnalyzeContent
+            async function advancedAnalyzeContent(text, contentType) {
+                // Detectar idioma
+                const selectedLanguage = document.getElementById('languageSelect').value;
+                const detectedLanguage = selectedLanguage === 'auto' ? detectLanguage(text) : selectedLanguage;
+                
+                // Simular processamento
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                
+                // Métricas básicas
+                const wordCount = text.split(/\s+/).length;
+                const sentenceCount = text.split(/[.!?]+/).length - 1;
+                const paragraphCount = text.split(/\n\s*\n/).length;
+                
+                // Análises principais com suporte multilíngue
+                const lexicalRichness = calculateLexicalRichness(text);
+                const sentenceVariety = analyzeSentenceVariety(text);
+                const aiPatternAnalysis = detectAIPatterns(text, detectedLanguage);
+                const humanPatternAnalysis = detectHumanPatterns(text, detectedLanguage);
+                
+                // CÁLCULO DO SCORE - Adaptado para multilíngue
+                let humanScore = 50; // Base neutra
+                
+                // PADRÕES FORTES DE IA SÃO DECISIVOS
+                humanScore -= aiPatternAnalysis.normalizedScore;
+                
+                // PADRÕES HUMANOS ADICIONAM BÔNUS
+                humanScore += humanPatternAnalysis.normalizedScore;
+                
+                // RIQUEZA LEXICAL - Bônus moderado
+                if (lexicalRichness > 35) humanScore += 8;
+                else if (lexicalRichness > 25) humanScore += 4;
+                else if (lexicalRichness < 10) humanScore -= 5;
+                
+                // VARIEDADE DE FRASES - Bônus moderado
+                if (sentenceVariety > 0.7) humanScore += 6;
+                else if (sentenceVariety > 0.5) humanScore += 3;
+                else if (sentenceVariety < 0.3) humanScore -= 4;
+                
+                // PADRÕES INEQUÍVOCOS DE IA SÃO DECISIVOS
+                const hasInequivocalIAPatterns = aiPatternAnalysis.patterns.some(p => 
+                    p.description.includes('EXCLUSIVE') ||
+                    p.description.includes('CHATGPT') ||
+                    p.description.includes('ARTIFACT')
+                );
+                
+                if (hasInequivocalIAPatterns) {
+                    humanScore -= 40;
+                    
+                    const markerCount = (text.match(/\+\d+/g) || []).length;
+                    if (markerCount >= 3) humanScore -= 25;
+                    if (markerCount >= 6) humanScore -= 20;
+                }
+                
+                // BÔNUS FORTES PARA PADRÕES HUMANOS
+                if (humanPatternAnalysis.patterns.some(p => p.description.includes('STRONG HUMAN') || p.description.includes('FORTE INDICADOR'))) {
+                    humanScore += 15;
+                }
+                
+                // Ajustes baseados no idioma detectado
+                if (detectedLanguage === 'other') {
+                    // Para idiomas não suportados, reduzir confiança
+                    humanScore = Math.max(20, Math.min(80, humanScore));
+                }
+                
+                const humanProbability = Math.max(5, Math.min(90, humanScore));
+                const confidence = calculateConfidence(text.length, humanPatternAnalysis.normalizedScore, aiPatternAnalysis.normalizedScore);
+                
+                // Gerar destaques
+                const textHighlights = generateTextHighlights(text, aiPatternAnalysis, humanPatternAnalysis);
+                
+                // Gerar sugestões multilíngues
+                const suggestions = generateMultilingualSuggestions(humanProbability, aiPatternAnalysis, humanPatternAnalysis, detectedLanguage);
+                
+                return {
+                    humanProbability,
+                    aiProbability: 100 - humanProbability,
+                    analyzedText: text,
+                    wordCount,
+                    sentenceCount,
+                    paragraphCount,
+                    contentType,
+                    detectedLanguage,
+                    confidence,
+                    advancedMetrics: {
+                        aiPatternScore: Math.round(aiPatternAnalysis.normalizedScore),
+                        humanPatternScore: Math.round(humanPatternAnalysis.normalizedScore),
+                        lexicalRichness: Math.round(lexicalRichness),
+                        sentenceVariety: Math.round(sentenceVariety * 100) / 100,
+                        strongAIPatterns: aiPatternAnalysis.patterns.length,
+                        strongHumanPatterns: humanPatternAnalysis.patterns.length,
+                        markerCount: (text.match(/\+\d+/g) || []).length
+                    },
+                    aiPatternAnalysis: aiPatternAnalysis,
+                    humanPatternAnalysis: humanPatternAnalysis,
+                    textHighlights,
+                    suggestions,
+                    detailedExplanation: generateDetailedExplanation({
+                        humanProbability, 
+                        aiPatternScore: aiPatternAnalysis.normalizedScore,
+                        humanPatternScore: humanPatternAnalysis.normalizedScore,
+                        lexicalRichness,
+                        sentenceVariety,
+                        aiPatterns: aiPatternAnalysis.patterns,
+                        humanPatterns: humanPatternAnalysis.patterns,
+                        markerCount: (text.match(/\+\d+/g) || []).length,
+                        language: detectedLanguage
+                    })
+                };
+            }
+
+            // Nova função para sugestões multilíngues
+            function generateMultilingualSuggestions(humanProb, aiPatternAnalysis, humanPatternAnalysis, language) {
+                const suggestions = [];
+                const languageTemplates = {
+                    'en': {
+                        highHuman: ['✅ Text shows strong human characteristics', '✓ Good linguistic variety and personal expressiveness'],
+                        mixed: ['📝 Text shows mixed characteristics', '✓ Some human elements identified'],
+                        likelyAI: ['🤖 Likely AI-generated content', '• Multiple AI patterns detected'],
+                        highAI: ['🚨 HIGH PROBABILITY OF AI CONTENT', '• Unequivocal AI patterns identified', '• Typical AI generative structure'],
+                        certainAI: ['🚨 ALMOST CERTAINLY AI GENERATED', '• Multiple artificial markers detected', '• Exclusive ChatGPT patterns identified', '• Complete rewrite recommended']
+                    },
+                    'pt': {
+                        highHuman: ['✅ Texto apresenta fortes características humanas', '✓ Boa variedade linguística e expressividade pessoal'],
+                        mixed: ['📝 Texto apresenta características mistas', '✓ Alguns elementos humanos identificados'],
+                        likelyAI: ['🤖 Provável conteúdo gerado por IA', '• Múltiplos padrões de IA detectados'],
+                        highAI: ['🚨 ALTA PROBABILIDADE DE CONTEÚDO DE IA', '• Padrões inequívocos de IA identificados', '• Estrutura típica de IA generativa'],
+                        certainAI: ['🚨 QUASE CERTAMENTE IA GENERATIVA', '• Múltiplos marcadores artificiais detectados', '• Padrões exclusivos de ChatGPT identificados', '• Recomenda-se reescrita completa']
+                    },
+                    'es': {
+                        highHuman: ['✅ Texto muestra fuertes características humanas', '✓ Buena variedad lingüística y expresividad personal'],
+                        mixed: ['📝 Texto muestra características mixtas', '✓ Algunos elementos humanos identificados'],
+                        likelyAI: ['🤖 Probable contenido generado por IA', '• Múltiples patrones de IA detectados'],
+                        highAI: ['🚨 ALTA PROBABILIDAD DE CONTENIDO DE IA', '• Patrones inequívocos de IA identificados', '• Estructura típica de IA generativa'],
+                        certainAI: ['🚨 CASI SEGURAMENTE IA GENERATIVA', '• Múltiples marcadores artificiales detectados', '• Patrones exclusivos de ChatGPT identificados', '• Se recomienda reescritura completa']
+                    }
+                };
+
+                const template = languageTemplates[language] || languageTemplates['en'];
+
+                if (humanProb >= 70) {
+                    suggestions.push(...template.highHuman);
+                } else if (humanProb >= 50) {
+                    suggestions.push(...template.mixed);
+                } else if (humanProb >= 30) {
+                    suggestions.push(...template.likelyAI);
+                } else if (humanProb >= 15) {
+                    suggestions.push(...template.highAI);
+                } else {
+                    suggestions.push(...template.certainAI);
+                }
+
+                if (aiPatternAnalysis.patterns.length > 0) {
+                    suggestions.push(`• ${aiPatternAnalysis.patterns.length} AI patterns detected`);
+                }
+
+                const markerCount = (currentAnalysisResult?.analyzedText.match(/\+\d+/g) || []).length;
+                if (markerCount > 0) {
+                    suggestions.push(`• ${markerCount} artificial markers (+1, +2) found`);
+                }
+
+                return suggestions;
+            }
+
+            // Atualize a função displayResults para mostrar o idioma detectado
+            function displayResults(result) {
+                // ... (código anterior mantido)
+
+                // Adicione informação do idioma
+                const analysisDetails = document.getElementById('analysisDetails');
+                analysisDetails.innerHTML = `
+                    <div class="detail-item">
+                        <strong>Detected Language:</strong> ${result.detectedLanguage.toUpperCase()}
+                    </div>
+                    <div class="detail-item">
+                        <strong>Content Type:</strong> ${document.querySelector(`#contentType option[value="${result.contentType}"]`).textContent}
+                    </div>
+                    <div class="detail-item">
+                        <strong>Text Statistics:</strong> ${result.wordCount} words, ${result.sentenceCount} sentences, ${result.paragraphCount} paragraphs
+                    </div>
+                    <div class="detail-item">
+                        <strong>Artificial Markers:</strong> ${result.advancedMetrics.markerCount} occurrences of +1/+2
+                    </div>
+                    <div class="detail-item">
+                        <strong>Technical Explanation:</strong> 
+                        ${result.detailedExplanation.join('; ')}
+                    </div>
+                    <div class="detail-item">
+                        <strong>AI Patterns Detected:</strong> ${result.aiPatternAnalysis.patterns.length} patterns
+                    </div>
+                    <div class="detail-item">
+                        <strong>Human Patterns Detected:</strong> ${result.humanPatternAnalysis.patterns.length} patterns
+                    </div>
+                `;
+
+                // ... (restante do código mantido)
+            }
+        });
+
+        // Mantenha todas as outras funções existentes (calculateLexicalRichness, analyzeSentenceVariety, etc.)
+    </script>
+</body>
+</html>
