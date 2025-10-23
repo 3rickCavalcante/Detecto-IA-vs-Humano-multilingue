@@ -8,6 +8,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
     <style>
+        /* Mantenha todo o CSS anterior aqui */
         * {
             margin: 0;
             padding: 0;
@@ -454,97 +455,102 @@
         let currentAnalysisResult = null;
         let extractedText = '';
 
-        // Padrões de IA por idioma - CORRIGIDOS
+        // Padrões de IA por idioma - MELHORADOS E BALANCEADOS
         const aiPatterns = {
             pt: [
                 { 
-                    pattern: /(além disso|dessa forma|portanto|assim sendo|desse modo|desta forma|por conseguinte|em suma|em síntese|em conclusão|para concluir|dito isso|nesse sentido|nesse contexto|convém notar|cabe salientar|cabe ressaltar|vale destacar|importa referir|é importante notar|é fundamental observar)/gi, 
-                    weight: 0.8, 
-                    description: "Transições formulaicas e frases padronizadas",
-                    suggestion: "Substitua por transições mais naturais ou integre a informação de forma mais orgânica no texto"
-                },
-                { 
-                    pattern: /(o presente estudo|esta pesquisa|o referido autor|o autor em questão|o objeto de estudo|conforme mencionado anteriormente|como foi dito|tal como referido)/gi, 
-                    weight: 0.7, 
-                    description: "Fórmulas acadêmicas excessivamente repetitivas",
-                    suggestion: "Varie as expressões de referência ou use pronomes quando possível"
+                    pattern: /(além disso|dessa forma|portanto|assim sendo|desse modo|desta forma|por conseguinte|em suma|em síntese)/gi, 
+                    weight: 1.2, 
+                    description: "Transições formulaicas comuns em IA",
+                    suggestion: "Substitua por transições mais naturais ou integre a informação de forma mais orgânica"
                 },
                 { 
                     pattern: /(pode-se observar que|verifica-se que|constata-se que|nota-se que|observa-se que|percebe-se que)/gi, 
-                    weight: 0.9, 
+                    weight: 1.5, 
                     description: "Estruturas impessoais padronizadas típicas de IA",
                     suggestion: "Reescreva de forma mais direta: 'Os dados mostram que...' ou 'Os resultados indicam...'"
                 },
                 { 
-                    pattern: /(no que diz respeito a|no âmbito do|no contexto da|em termos de|com relação a|no tocante a)/gi, 
-                    weight: 0.6, 
-                    description: "Expressões circunstanciais excessivas",
-                    suggestion: "Seja mais direto: 'Sobre...' ou 'Quanto a...'"
+                    pattern: /(convém notar que|cabe salientar que|cabe ressaltar que|vale destacar que|importa referir que|é importante notar que|é fundamental observar que)/gi, 
+                    weight: 1.3, 
+                    description: "Fórmulas introdutórias excessivamente formais",
+                    suggestion: "Apresente a informação diretamente sem fórmulas introdutórias longas"
+                },
+                { 
+                    pattern: /(dito isso|nesse sentido|nesse contexto|em conclusão|para concluir|por fim)/gi, 
+                    weight: 1.0, 
+                    description: "Marcadores de conclusão padronizados",
+                    suggestion: "Use transições de conclusão mais variadas e contextuais"
+                },
+                { 
+                    pattern: /(o presente estudo|esta pesquisa|o referido autor|o autor em questão|conforme mencionado anteriormente|como foi dito)/gi, 
+                    weight: 0.8, 
+                    description: "Referências acadêmicas excessivamente formais",
+                    suggestion: "Varie as expressões de referência ou use pronomes quando possível"
                 }
             ],
             en: [
                 { 
-                    pattern: /(furthermore|moreover|therefore|thus|hence|in conclusion|in summary|to summarize|as previously mentioned|as stated earlier)/gi, 
-                    weight: 0.8, 
-                    description: "Formulaic transitions and standardized phrases",
+                    pattern: /(furthermore|moreover|therefore|thus|hence|in conclusion|in summary)/gi, 
+                    weight: 1.2, 
+                    description: "Formulaic transitions common in AI",
                     suggestion: "Replace with more natural transitions or integrate information more organically"
                 },
                 { 
                     pattern: /(it is important to note|it should be emphasized|it is worth mentioning|it is crucial to highlight)/gi, 
-                    weight: 0.9, 
+                    weight: 1.5, 
                     description: "Standardized introductory phrases typical of AI",
-                    suggestion: "Present the information directly without introductory formulas"
-                }
-            ],
-            es: [
-                { 
-                    pattern: /(además|por lo tanto|así pues|de esta manera|en conclusión|en resumen|para resumir|como se mencionó anteriormente)/gi, 
-                    weight: 0.8, 
-                    description: "Transiciones formulaicas y frases estandarizadas",
-                    suggestion: "Sustituya por transiciones más naturales o integre la información de forma más orgánica"
-                }
-            ],
-            fr: [
-                { 
-                    pattern: /(de plus|par conséquent|ainsi|de cette manière|en conclusion|en résumé|pour résumer|comme mentionné précédemment)/gi, 
-                    weight: 0.8, 
-                    description: "Transitions formulaires et phrases standardisées",
-                    suggestion: "Remplacer par des transitions plus naturelles ou intégrer l'information plus organiquement"
+                    suggestion: "Present the information directly without lengthy introductory formulas"
                 }
             ]
         };
 
-        // Padrões humanos - CORRIGIDOS
+        // Padrões humanos - EXPANDIDOS E MELHORADOS
         const humanPatterns = {
             universal: [
                 { 
-                    pattern: /(no entanto|contudo|todavia|entretanto|por outro lado)/gi, 
-                    weight: 0.7, 
-                    description: "Contraposições e nuances típicas do pensamento humano" 
+                    pattern: /(\bno entanto\b|\bcontudo\b|\btodavia\b|\bentretanto\b|\bpor outro lado\b)/gi, 
+                    weight: 1.8, 
+                    description: "Contraposições e nuances complexas" 
                 },
                 { 
-                    pattern: /(curiosamente|surpreendentemente|interessantemente|notavelmente)/gi, 
-                    weight: 0.8, 
+                    pattern: /(\bcuriosamente\b|\bsurpreendentemente\b|\binteressantemente\b|\bnotavelmente\b|\binesperadamente\b)/gi, 
+                    weight: 2.0, 
                     description: "Marcadores de avaliação e interesse pessoal" 
                 },
                 { 
-                    pattern: /(parece que|aparentemente|provavelmente|possivelmente)/gi, 
-                    weight: 0.6, 
-                    description: "Hesitações e qualificações típicas do raciocínio humano" 
+                    pattern: /(\bparece que\b|\baparentemente\b|\bprovavelmente\b|\bpossivelmente\b|\btalvez\b)/gi, 
+                    weight: 1.5, 
+                    description: "Hesitações e qualificações do raciocínio" 
                 },
                 { 
-                    pattern: /(por exemplo|isto é|em outras palavras|ou seja)/gi, 
-                    weight: 0.5, 
+                    pattern: /(\bpor exemplo\b|\bisto é\b|\bem outras palavras\b|\bor seja\b|\bdigamos\b)/gi, 
+                    weight: 1.2, 
                     description: "Estratégias de clarificação e exemplificação" 
+                },
+                { 
+                    pattern: /(\bna verdade\b|\bde fato\b|\befetivamente\b|\brealmente\b)/gi, 
+                    weight: 1.3, 
+                    description: "Ênfase e confirmação típicas da fala humana" 
+                },
+                { 
+                    pattern: /(\bembora\b|\bmesmo que\b|\bainda que\b|\bse bem que\b)/gi, 
+                    weight: 1.7, 
+                    description: "Estruturas concessivas complexas" 
+                },
+                { 
+                    pattern: /(\bcertamente\b|\bdecididamente\b|\bindubitavelmente\b|\bcom certeza\b)/gi, 
+                    weight: 1.4, 
+                    description: "Expressões de certeza e convicção" 
                 }
             ]
         };
 
-        // ========== FUNÇÕES DE ANÁLISE CORRIGIDAS ==========
+        // ========== FUNÇÕES DE ANÁLISE MELHORADAS ==========
 
         function detectLanguage(text) {
             const patterns = {
-                pt: /\b(que|não|de|da|do|em|um|uma|com|por|os|as|é|são|para|se|mais|como|mas|em|porque|muito|já|ou|quando|más|até|sobre|tem|ser|está|sua|seu)\b/gi,
+                pt: /\b(que|não|de|da|do|em|um|uma|com|por|os|as|é|são|para|se|mais|como|mas|em|porque|muito|já|ou|quando|até|sobre|tem|ser|está|sua|seu)\b/gi,
                 en: /\b(the|and|to|of|a|in|is|it|you|that|he|was|for|on|are|as|with|his|they|I|at|be|this|have|from|or|one|had|by|word|but|not|what|all|were|we|when|your|can|said)\b/gi,
                 es: /\b(el|la|de|que|y|en|un|es|se|los|las|del|por|con|para|una|su|al|lo|como|más|pero|sus|le|ha|me|si|sin|sobre|este|ya|entre|cuando|todo|esta|ser|son|dos|también|fue|había|era|muy|años|hasta|desde|está|mi|porque|qué|sólo|han|yo|hay|vez|puede|todos|así|nos|ni|parte|tiene|él|uno|donde|bien|tiempo|mismo|ese|ahora|cada|e|vida|otro|después|te|otros|aunque|esa|eso|hace|otra|gobierno|tan|durante|siempre|día|tanto|ella|tres|sí|dijo|sido|gran|país|según|menos|mundo|año|antes|estado|contra|sino|forma|caso|nada|hacer|general|estaba|poco|estos|presidente|mayor|ante|unos|les|algo|pesar|primer|algunos|director|dicho|cierto)\b/gi,
                 fr: /\b(le|la|de|et|à|en|un|une|est|il|elle|on|que|qui|dans|du|des|au|aux|avec|par|pour|sur|dans|pas|ce|se|les|mon|ton|son|ma|ta|sa|mes|tes|ses|notre|votre|leur|nos|vos|leurs|je|tu|il|elle|nous|vous|ils|elles|me|te|se|nous|vous|y|en|le|la|les|lui|leur|eux|moi|toi|soi|celui|celle|ceux|celles|ci|ça|ceci|cela|qui|que|quoi|dont|où)\b/gi
@@ -577,7 +583,8 @@
                     const matches = text.match(regex);
                     
                     if (matches && matches.length > 0) {
-                        const score = matches.length * patternObj.weight;
+                        // Score baseado no número de ocorrências e peso
+                        const score = Math.min(matches.length * patternObj.weight, 10);
                         aiScore += score;
                         
                         matches.forEach(match => {
@@ -606,7 +613,8 @@
                     const matches = text.match(regex);
                     
                     if (matches && matches.length > 0) {
-                        const score = matches.length * patternObj.weight;
+                        // Score baseado no número de ocorrências e peso
+                        const score = Math.min(matches.length * patternObj.weight, 12);
                         humanScore += score;
                         
                         matches.forEach(match => {
@@ -627,14 +635,14 @@
                 }
             });
 
-            // Análise de complexidade e estilo
+            // ANÁLISE DE COMPLEXIDADE APRIMORADA
             const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
             const words = text.split(/\s+/).filter(w => w.length > 0);
             const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim().length > 0);
 
             // Calcular métricas de complexidade
             const avgSentenceLength = sentences.length > 0 ? words.length / sentences.length : 0;
-            const uniqueWords = new Set(words.map(w => w.toLowerCase()));
+            const uniqueWords = new Set(words.map(w => w.toLowerCase().replace(/[.,!?;:()]/g, '')));
             const lexicalDiversity = words.length > 0 ? (uniqueWords.size / words.length) * 100 : 0;
 
             // Análise de repetição de palavras
@@ -648,54 +656,111 @@
 
             const repeatedWords = Object.values(wordFrequency).filter(count => count > 3).length;
             
-            // Ajustar scores baseado na complexidade
-            if (avgSentenceLength > 25 && lexicalDiversity < 40) {
-                aiScore += 3;
-            }
-            if (avgSentenceLength < 15 && lexicalDiversity > 60) {
-                humanScore += 2;
-            }
-            if (repeatedWords > 10) {
-                aiScore += 2;
-            }
-            if (lexicalDiversity > 70) {
-                humanScore += 3;
-            }
+            // ANÁLISE DE VARIEDADE SINTÁTICA (NOVO)
+            const sentenceStarts = sentences.map(s => s.trim().split(/\s+/)[0]?.toLowerCase() || '');
+            const uniqueStarts = new Set(sentenceStarts.filter(s => s.length > 0));
+            const sentenceVariety = (uniqueStarts.size / sentences.length) * 100;
+
+            // ANÁLISE DE PADRÕES DE PONTUAÇÃO (NOVO)
+            const punctuationPatterns = text.match(/[;:—–]/g) || [];
+            const punctuationScore = punctuationPatterns.length * 0.5;
+
+            // CÁLCULO DE SCORES BASEADO EM MÚLTIPLOS FATORES
+            let complexityScore = 0;
+            
+            // Fatores que indicam escrita humana
+            if (lexicalDiversity > 65) complexityScore += 3;
+            if (lexicalDiversity > 75) complexityScore += 2;
+            if (sentenceVariety > 60) complexityScore += 2;
+            if (punctuationScore > 2) complexityScore += 1.5;
+            if (avgSentenceLength > 15 && avgSentenceLength < 30) complexityScore += 2;
+            
+            // Fatores que indicam IA
+            if (lexicalDiversity < 45) complexityScore -= 2;
+            if (repeatedWords > 8) complexityScore -= 1.5;
+            if (avgSentenceLength > 35) complexityScore -= 1;
+            if (sentences.length > 0 && sentenceVariety < 40) complexityScore -= 2;
+
+            // Aplicar scores de complexidade
+            humanScore += Math.max(0, complexityScore);
+            aiScore += Math.max(0, -complexityScore);
+
+            // BASE SCORE para textos com poucos padrões detectados
+            const baseHumanScore = 3;
+            const baseAiScore = 2;
 
             // Ajustar para conteúdo acadêmico
             if (contentType === 'academic') {
-                humanScore = Math.max(0, humanScore - 1);
+                // Em textos acadêmicos, reduzir penalidades por formalidade
+                aiScore = Math.max(0, aiScore - 2);
+                humanScore += 1; // Bônus para textos acadêmicos bem estruturados
             }
 
+            // Garantir scores mínimos
+            humanScore = Math.max(baseHumanScore, humanScore);
+            aiScore = Math.max(baseAiScore, aiScore);
+
             return {
-                aiScore: Math.min(aiScore, 20),
-                humanScore: Math.min(humanScore, 20),
-                aiMatches: aiMatches.slice(0, 50), // Limitar número de matches
-                humanMatches: humanMatches.slice(0, 50),
+                aiScore: Math.min(aiScore, 25),
+                humanScore: Math.min(humanScore, 25),
+                aiMatches: aiMatches.slice(0, 30),
+                humanMatches: humanMatches.slice(0, 30),
                 metrics: {
                     sentenceCount: sentences.length,
                     wordCount: words.length,
                     paragraphCount: paragraphs.length,
                     avgSentenceLength: avgSentenceLength.toFixed(2),
                     lexicalDiversity: lexicalDiversity.toFixed(1),
-                    repeatedWords: repeatedWords
+                    repeatedWords: repeatedWords,
+                    sentenceVariety: sentenceVariety.toFixed(1),
+                    punctuationPatterns: punctuationPatterns.length
                 }
             };
         }
 
         function calculateProbability(analysis, contentType) {
             const total = analysis.aiScore + analysis.humanScore;
-            if (total === 0) return { human: 50, ai: 50, confidence: 10 };
+            if (total === 0) return { human: 50, ai: 50, confidence: 25 };
 
             let humanProbability = (analysis.humanScore / total) * 100;
+            let aiProbability = 100 - humanProbability;
             
+            // CÁLCULO DE CONFIANÇA MELHORADO
+            let confidence = 0;
+            
+            // Base de confiança baseada na força dos sinais
+            const signalStrength = (analysis.aiScore + analysis.humanScore) / 50 * 100;
+            
+            // Confiança baseada na consistência dos padrões
+            const patternConsistency = Math.min(
+                (analysis.aiMatches.length + analysis.humanMatches.length) / 10 * 100, 
+                100
+            );
+            
+            // Confiança baseada na qualidade das métricas
+            const metricsQuality = Math.min(
+                (analysis.metrics.lexicalDiversity / 100 * 50) + 
+                (analysis.metrics.sentenceVariety / 100 * 30) + 
+                (Math.max(0, 20 - analysis.metrics.repeatedWords)), 
+                100
+            );
+            
+            // Confiança final - média ponderada
+            confidence = Math.round(
+                (signalStrength * 0.4) + 
+                (patternConsistency * 0.3) + 
+                (metricsQuality * 0.3)
+            );
+
             // Ajuste para conteúdo acadêmico
             if (contentType === 'academic') {
-                humanProbability = Math.min(humanProbability * 1.1, 95);
+                humanProbability = Math.min(humanProbability * 1.05, 95);
+                aiProbability = 100 - humanProbability;
+                confidence = Math.min(confidence * 1.1, 95); // Mais confiança em análises acadêmicas
             }
-            
-            const aiProbability = 100 - humanProbability;
-            const confidence = Math.min((analysis.aiScore + analysis.humanScore) / 4 * 10, 100);
+
+            // Garantir confiança mínima
+            confidence = Math.max(25, confidence);
 
             return {
                 human: Math.round(humanProbability),
@@ -840,13 +905,14 @@
                     sentenceCount: analysis.metrics.sentenceCount,
                     paragraphCount: analysis.metrics.paragraphCount,
                     advancedMetrics: {
-                        aiPatternScore: Math.round((analysis.aiScore / 20) * 100),
-                        humanPatternScore: Math.round((analysis.humanScore / 20) * 100),
+                        aiPatternScore: Math.round((analysis.aiScore / 25) * 100),
+                        humanPatternScore: Math.round((analysis.humanScore / 25) * 100),
                         lexicalRichness: analysis.metrics.lexicalDiversity,
-                        sentenceVariety: analysis.metrics.avgSentenceLength > 20 ? 'Alta' : analysis.metrics.avgSentenceLength > 15 ? 'Moderada' : 'Baixa',
+                        sentenceVariety: analysis.metrics.sentenceVariety > 60 ? 'Alta' : analysis.metrics.sentenceVariety > 40 ? 'Moderada' : 'Baixa',
                         strongAIPatterns: analysis.aiMatches.length,
                         strongHumanPatterns: analysis.humanMatches.length,
-                        repeatedWords: analysis.metrics.repeatedWords
+                        repeatedWords: analysis.metrics.repeatedWords,
+                        punctuationComplexity: analysis.metrics.punctuationPatterns
                     },
                     aiPatternAnalysis: {
                         patterns: analysis.aiMatches.slice(0, 5).map(match => ({
@@ -891,9 +957,9 @@
             let probabilityMessage = '';
             let confidenceClass = '';
             
-            if (result.confidence >= 80) {
+            if (result.confidence >= 75) {
                 confidenceClass = 'high-confidence';
-            } else if (result.confidence >= 60) {
+            } else if (result.confidence >= 50) {
                 confidenceClass = 'medium-confidence';
             } else {
                 confidenceClass = 'low-confidence';
@@ -923,23 +989,24 @@
                 </div>
                 <div class="metric-card">
                     <div>Riqueza Lexical</div>
-                    <div class="metric-value ${metrics.lexicalRichness > 60 ? 'good-metric' : metrics.lexicalRichness > 40 ? 'warning-metric' : 'bad-metric'}">${metrics.lexicalRichness}%</div>
+                    <div class="metric-value ${metrics.lexicalRichness > 65 ? 'good-metric' : metrics.lexicalRichness > 45 ? 'warning-metric' : 'bad-metric'}">${metrics.lexicalRichness}%</div>
                 </div>
                 <div class="metric-card">
-                    <div>Palavras Repetidas</div>
-                    <div class="metric-value ${metrics.repeatedWords < 5 ? 'good-metric' : metrics.repeatedWords < 10 ? 'warning-metric' : 'bad-metric'}">${metrics.repeatedWords}</div>
+                    <div>Variedade Sintática</div>
+                    <div class="metric-value ${metrics.sentenceVariety === 'Alta' ? 'good-metric' : metrics.sentenceVariety === 'Moderada' ? 'warning-metric' : 'bad-metric'}">${metrics.sentenceVariety}</div>
                 </div>
             `;
 
             analysisDetails.innerHTML = `
                 <div class="detail-item">
                     <h4>Idioma Detectado</h4>
-                    <p>${result.detectedLanguage.toUpperCase()} - ${result.confidence}% de confiança na detecção</p>
+                    <p>${result.detectedLanguage.toUpperCase()} - Análise com ${result.confidence}% de confiança</p>
                 </div>
                 <div class="detail-item">
                     <h4>Estatísticas do Texto</h4>
                     <p>${result.wordCount} palavras, ${result.sentenceCount} sentenças, ${result.paragraphCount} parágrafos</p>
-                    <p>Média de ${result.advancedMetrics.sentenceVariety.toLowerCase()} por sentença (${result.rawAnalysis.metrics.avgSentenceLength} palavras)</p>
+                    <p>Média de ${result.rawAnalysis.metrics.avgSentenceLength} palavras por sentença</p>
+                    <p>Variedade sintática: ${result.advancedMetrics.sentenceVariety.toLowerCase()} (${result.rawAnalysis.metrics.sentenceVariety}%)</p>
                 </div>
                 <div class="detail-item">
                     <h4>Padrões de IA Identificados</h4>
@@ -980,7 +1047,7 @@
             if (result.contentType === 'academic') {
                 if (result.humanProbability < 50) {
                     suggestionText = `
-                        <h4>Sugestões para Texto Acadêmico (Mantenha a impessoalidade)</h4>
+                        <h4>Sugestões para Texto Acadêmico</h4>
                         <ul>
                             <li><strong>Varie as estruturas sintáticas:</strong> Evite repetir as mesmas construções gramaticais</li>
                             <li><strong>Use sinônimos:</strong> Substitua termos repetidos por equivalentes</li>
