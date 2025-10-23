@@ -175,7 +175,6 @@
             padding: 8px 12px;
             margin: 5px 0;
             border-radius: 4px;
-            position: relative;
         }
 
         .highlight-ai {
@@ -184,19 +183,6 @@
             padding: 8px 12px;
             margin: 5px 0;
             border-radius: 4px;
-            position: relative;
-        }
-
-        .highlight-tooltip {
-            position: absolute;
-            top: -25px;
-            right: 5px;
-            background: #333;
-            color: white;
-            padding: 3px 8px;
-            border-radius: 3px;
-            font-size: 0.8em;
-            white-space: nowrap;
         }
 
         .text-preview {
@@ -346,8 +332,8 @@
             border: 1px solid #c3e6cb;
         }
 
-        .highlight-explanation {
-            display: none;
+        .ai-highlight:hover::after {
+            content: attr(title);
             position: absolute;
             bottom: 100%;
             left: 50%;
@@ -359,10 +345,6 @@
             font-size: 0.8em;
             white-space: nowrap;
             z-index: 1000;
-        }
-
-        .ai-highlight:hover .highlight-explanation {
-            display: block;
         }
     </style>
 </head>
@@ -472,117 +454,112 @@
         let currentAnalysisResult = null;
         let extractedText = '';
 
-        // Padrões de IA por idioma - MELHORADOS
+        // Padrões de IA por idioma - CORRIGIDOS
         const aiPatterns = {
             pt: [
                 { 
-                    pattern: /(além disso|dessa forma|portanto|assim sendo|desse modo|desta forma|por conseguinte|em suma|em síntese|em conclusão|para concluir|dito isso|nesse sentido|nesse contexto|convém notar|cabe salientar|cabe ressaltar|vale destacar|importa referir|é importante notar|é fundamental observar)\.?\s/gi, 
+                    pattern: /(além disso|dessa forma|portanto|assim sendo|desse modo|desta forma|por conseguinte|em suma|em síntese|em conclusão|para concluir|dito isso|nesse sentido|nesse contexto|convém notar|cabe salientar|cabe ressaltar|vale destacar|importa referir|é importante notar|é fundamental observar)/gi, 
                     weight: 0.8, 
                     description: "Transições formulaicas e frases padronizadas",
                     suggestion: "Substitua por transições mais naturais ou integre a informação de forma mais orgânica no texto"
                 },
                 { 
-                    pattern: /(o presente estudo|esta pesquisa|o referido autor|o autor em questão|o objeto de estudo|conforme mencionado anteriormente|como foi dito|tal como referido)\.?\s/gi, 
+                    pattern: /(o presente estudo|esta pesquisa|o referido autor|o autor em questão|o objeto de estudo|conforme mencionado anteriormente|como foi dito|tal como referido)/gi, 
                     weight: 0.7, 
                     description: "Fórmulas acadêmicas excessivamente repetitivas",
                     suggestion: "Varie as expressões de referência ou use pronomes quando possível"
                 },
                 { 
-                    pattern: /(pode-se observar que|verifica-se que|constata-se que|nota-se que|observa-se que|percebe-se que)\.?\s/gi, 
+                    pattern: /(pode-se observar que|verifica-se que|constata-se que|nota-se que|observa-se que|percebe-se que)/gi, 
                     weight: 0.9, 
                     description: "Estruturas impessoais padronizadas típicas de IA",
                     suggestion: "Reescreva de forma mais direta: 'Os dados mostram que...' ou 'Os resultados indicam...'"
                 },
                 { 
-                    pattern: /(\bno que diz respeito a\b|\bno âmbito do\b|\bno contexto da\b|\bem termos de\b|\bcom relação a\b|\bno tocante a\b)\.?\s/gi, 
+                    pattern: /(no que diz respeito a|no âmbito do|no contexto da|em termos de|com relação a|no tocante a)/gi, 
                     weight: 0.6, 
                     description: "Expressões circunstanciais excessivas",
                     suggestion: "Seja mais direto: 'Sobre...' ou 'Quanto a...'"
-                },
-                { 
-                    pattern: /(deve-se considerar|importa considerar|convém considerar|é necessário considerar)\.?\s/gi, 
-                    weight: 0.8, 
-                    description: "Fórmulas de consideração padronizadas",
-                    suggestion: "Apresente a consideração diretamente sem a fórmula introdutória"
                 }
             ],
             en: [
                 { 
-                    pattern: /(furthermore|moreover|therefore|thus|hence|in conclusion|in summary|to summarize|as previously mentioned|as stated earlier)\.?\s/gi, 
+                    pattern: /(furthermore|moreover|therefore|thus|hence|in conclusion|in summary|to summarize|as previously mentioned|as stated earlier)/gi, 
                     weight: 0.8, 
                     description: "Formulaic transitions and standardized phrases",
                     suggestion: "Replace with more natural transitions or integrate information more organically"
                 },
                 { 
-                    pattern: /(it is important to note|it should be emphasized|it is worth mentioning|it is crucial to highlight)\.?\s/gi, 
+                    pattern: /(it is important to note|it should be emphasized|it is worth mentioning|it is crucial to highlight)/gi, 
                     weight: 0.9, 
                     description: "Standardized introductory phrases typical of AI",
                     suggestion: "Present the information directly without introductory formulas"
-                },
+                }
+            ],
+            es: [
                 { 
-                    pattern: /(this study|the present research|the aforementioned|the said author)\.?\s/gi, 
-                    weight: 0.7, 
-                    description: "Excessively repetitive academic formulas",
-                    suggestion: "Vary reference expressions or use pronouns when possible"
+                    pattern: /(además|por lo tanto|así pues|de esta manera|en conclusión|en resumen|para resumir|como se mencionó anteriormente)/gi, 
+                    weight: 0.8, 
+                    description: "Transiciones formulaicas y frases estandarizadas",
+                    suggestion: "Sustituya por transiciones más naturales o integre la información de forma más orgánica"
+                }
+            ],
+            fr: [
+                { 
+                    pattern: /(de plus|par conséquent|ainsi|de cette manière|en conclusion|en résumé|pour résumer|comme mentionné précédemment)/gi, 
+                    weight: 0.8, 
+                    description: "Transitions formulaires et phrases standardisées",
+                    suggestion: "Remplacer par des transitions plus naturelles ou intégrer l'information plus organiquement"
                 }
             ]
         };
 
-        // Padrões humanos - MELHORADOS
+        // Padrões humanos - CORRIGIDOS
         const humanPatterns = {
             universal: [
                 { 
-                    pattern: /(\bno entanto\b|\bcontudo\b|\btodavia\b|\bentretanto\b|\bpor outro lado\b)\.?\s/gi, 
+                    pattern: /(no entanto|contudo|todavia|entretanto|por outro lado)/gi, 
                     weight: 0.7, 
                     description: "Contraposições e nuances típicas do pensamento humano" 
                 },
                 { 
-                    pattern: /(\bcuriosamente\b|\bsurpreendentemente\b|\binteressantemente\b|\bnotavelmente\b)\.?\s/gi, 
+                    pattern: /(curiosamente|surpreendentemente|interessantemente|notavelmente)/gi, 
                     weight: 0.8, 
                     description: "Marcadores de avaliação e interesse pessoal" 
                 },
                 { 
-                    pattern: /(\bparece que\b|\baparentemente\b|\bprovavelmente\b|\bpossivelmente\b)\.?\s/gi, 
+                    pattern: /(parece que|aparentemente|provavelmente|possivelmente)/gi, 
                     weight: 0.6, 
                     description: "Hesitações e qualificações típicas do raciocínio humano" 
                 },
                 { 
-                    pattern: /(\bpor exemplo\b|\bisto é\b|\bem outras palavras\b|\bor seja\b)\.?\s/gi, 
+                    pattern: /(por exemplo|isto é|em outras palavras|ou seja)/gi, 
                     weight: 0.5, 
                     description: "Estratégias de clarificação e exemplificação" 
-                },
-                { 
-                    pattern: /(\bno meu entender\b|\bna minha perspectiva\b|\bdo meu ponto de vista\b)\.?\s/gi, 
-                    weight: 0.9, 
-                    description: "Expressões de posicionamento pessoal (em textos não acadêmicos)" 
                 }
             ]
         };
 
-        // ========== FUNÇÕES DE ANÁLISE MELHORADAS ==========
+        // ========== FUNÇÕES DE ANÁLISE CORRIGIDAS ==========
 
         function detectLanguage(text) {
             const patterns = {
                 pt: /\b(que|não|de|da|do|em|um|uma|com|por|os|as|é|são|para|se|mais|como|mas|em|porque|muito|já|ou|quando|más|até|sobre|tem|ser|está|sua|seu)\b/gi,
-                en: /\b(the|and|to|of|a|in|is|it|you|that|he|was|for|on|are|as|with|his|they|I|at|be|this|have|from|or|one|had|by|word|but|not|what|all|were|we|when|your|can|said|there|use|each|which|she|do|how|their|if|will|up|other|about|out|many|then|them|these|so|some|her|would|make|like|him|into|time|has|two|more|write|go|see|number|no|way|could|people|my|than|first|water|been|call|who|oil|its|now|find|long|down|day|did|get|come|made|may|part)\b/gi,
-                es: /\b(el|la|de|que|y|en|un|es|se|los|las|del|por|con|para|una|su|al|lo|como|más|pero|sus|le|ha|me|si|sin|sobre|este|ya|entre|cuando|todo|esta|ser|son|dos|también|fue|había|era|muy|años|hasta|desde|está|mi|porque|qué|sólo|han|yo|hay|vez|puede|todos|así|nos|ni|parte|tiene|él|uno|donde|bien|tiempo|mismo|ese|ahora|cada|e|vida|otro|después|te|otros|aunque|esa|eso|hace|otra|gobierno|tan|durante|siempre|día|tanto|ella|tres|sí|dijo|sido|gran|país|según|menos|mundo|año|antes|estado|contra|sino|forma|caso|nada|hacer|general|estaba|poco|estos|presidente|mayor|ante|unos|les|algo|pesar|primer|algunos|director|dicho|cierto|cuerpo|guerra|mientras|además|tal|iba|familia|población|trabajo|lugar|grupo|centro|obra|real|punto|actividad|difícil|proceso|mercado|comunidad|servicio|manera|nivel|política|sistema|cultura|historia|importante|social|necesario|programa|derecho|persona|partido|medio|presente|situación|desarrollo|proyecto|información|educación|organización|condición|resultado|cambio|conocimiento|capacidad|efecto|uso|autoridad|relación|momento|aspecto|estudio|tipo|acción|producto|objeto|contexto|final|estructura|necesidad|modelo|principio|investigación|método|análisis|diseño|tecnología|recursos|proyecto|estrategia|comportamiento|función|concepto|procedimiento|investigador|hipótesis|variable|muestra|datos|análisis|resultados|discusión|conclusión|recomendación|limitación|futuro)\b/gi,
-                fr: /\b(le|la|de|et|à|en|un|une|est|il|elle|on|que|qui|dans|du|des|au|aux|avec|par|pour|sur|dans|pas|ce|se|les|mon|ton|son|ma|ta|sa|mes|tes|ses|notre|votre|leur|nos|vos|leurs|je|tu|il|elle|nous|vous|ils|elles|me|te|se|nous|vous|y|en|le|la|les|lui|leur|eux|moi|toi|soi|celui|celle|ceux|celles|ci|ça|ceci|cela|qui|que|quoi|dont|où|lequel|laquelle|lesquels|lesquelles|duquel|de laquelle|desquels|desquelles|auquel|à laquelle|auxquels|auxquelles|ce|cet|cette|ces|mon|ton|son|ma|ta|sa|mes|tes|ses|notre|votre|leur|nos|vos|leurs|aucun|aucune|aucuns|aucunes|certain|certaine|certains|certaines|chaque|différents|différentes|divers|diverses|plusieurs|quelque|quelques|tel|telle|tels|telles|tout|toute|tous|toutes|même|mêmes|autre|autres|premier|première|premiers|premières|dernier|dernière|derniers|dernières|ancien|ancienne|anciens|anciennes|nouveau|nouvelle|nouveaux|nouvelles|petit|petite|petits|petites|grand|grande|grands|grandes|jeune|jeunes|beau|belle|beaux|belles|bon|bonne|bons|bonnes|haut|haute|hauts|hautes|bas|basse|bas|basses|gros|grosse|gros|grosses|long|longue|longs|longues|meilleur|meilleure|meilleurs|meilleures|pire|pires|moindre|moindres|quel|quelle|quels|quelles|combien|comment|où|quand|pourquoi|si|oui|non|peut-être|probablement|certainement|sûrement|vraiment|absolument|totalement|complètement|entièrement|partiellement|relativement|relativement|assez|très|trop|peu|beaucoup|énormément|extrêmement|incroyablement|remarquablement|particulièrement|spécialement|essentiellement|fondamentalement|principalement|seulement|uniquement|exclusivement|précisément|exactement|correctement|parfaitement|imparfaitement|mal|mauvais|mauvaise|mauvais|mauvaises|faux|fausse|faux|fausses|vrai|vraie|vrais|vraies|juste|juste|justes|justes|clair|claire|clairs|claires|obscur|obscure|obscurs|obscures|simple|simple|simples|simples|complexe|complexe|complexes|complexes|facile|facile|faciles|faciles|difficile|difficile|difficiles|difficiles|possible|possible|possibles|possibles|impossible|impossible|impossibles|impossibles|nécessaire|nécessaire|nécessaires|nécessaires|important|importante|importants|importantes|essentiel|essentielle|essentiels|essentielles|fondamental|fondamentale|fondamentaux|fondamentales|principal|principale|principaux|principales|secondaire|secondaire|secondaires|secondaires|tertiaire|tertiaire|tertiaires|tertiaires|premier|première|premiers|premières|dernier|dernière|derniers|dernières|prochain|prochaine|prochains|prochaines|ancien|ancienne|anciens|anciennes|nouveau|nouvelle|nouveaux|nouvelles|moderne|moderne|modernes|modernes|contemporain|contemporaine|contemporains|contemporaines|actuel|actuelle|actuels|actuelles|récent|récente|récents|récentes|ancien|ancienne|anciens|anciennes|futur|future|futurs|futures|passé|passée|passés|passées|présent|présente|présents|présentes|historique|historique|historiques|historiques|culturel|culturelle|culturels|culturelles|social|sociale|sociaux|sociales|économique|économique|économiques|économiques|politique|politique|politiques|politiques|juridique|juridique|juridiques|juridiques|technique|technique|techniques|techniques|scientifique|scientifique|scientifiques|scientifiques|artistique|artistique|artistiques|artistiques|littéraire|littéraire|littéraires|littéraires|philosophique|philosophique|philosophiques|philosophiques|religieux|religieuse|religieux|religieuses|spirituel|spirituelle|spirituels|spirituelles|matériel|matérielle|matériels|matérielles|physique|physique|physiques|physiques|mental|mentale|mentaux|mentales|psychologique|psychologique|psychologiques|psychologiques|émotionnel|émotionnelle|émotionnels|émotionnelles|intellectuel|intellectuelle|intellectuels|intellectuelles|moral|morale|moraux|morales|éthique|éthique|éthiques|éthiques|esthétique|esthétique|esthétiques|esthétiques)\b/gi
+                en: /\b(the|and|to|of|a|in|is|it|you|that|he|was|for|on|are|as|with|his|they|I|at|be|this|have|from|or|one|had|by|word|but|not|what|all|were|we|when|your|can|said)\b/gi,
+                es: /\b(el|la|de|que|y|en|un|es|se|los|las|del|por|con|para|una|su|al|lo|como|más|pero|sus|le|ha|me|si|sin|sobre|este|ya|entre|cuando|todo|esta|ser|son|dos|también|fue|había|era|muy|años|hasta|desde|está|mi|porque|qué|sólo|han|yo|hay|vez|puede|todos|así|nos|ni|parte|tiene|él|uno|donde|bien|tiempo|mismo|ese|ahora|cada|e|vida|otro|después|te|otros|aunque|esa|eso|hace|otra|gobierno|tan|durante|siempre|día|tanto|ella|tres|sí|dijo|sido|gran|país|según|menos|mundo|año|antes|estado|contra|sino|forma|caso|nada|hacer|general|estaba|poco|estos|presidente|mayor|ante|unos|les|algo|pesar|primer|algunos|director|dicho|cierto)\b/gi,
+                fr: /\b(le|la|de|et|à|en|un|une|est|il|elle|on|que|qui|dans|du|des|au|aux|avec|par|pour|sur|dans|pas|ce|se|les|mon|ton|son|ma|ta|sa|mes|tes|ses|notre|votre|leur|nos|vos|leurs|je|tu|il|elle|nous|vous|ils|elles|me|te|se|nous|vous|y|en|le|la|les|lui|leur|eux|moi|toi|soi|celui|celle|ceux|celles|ci|ça|ceci|cela|qui|que|quoi|dont|où)\b/gi
             };
 
             let scores = { pt: 0, en: 0, es: 0, fr: 0 };
-            const words = text.toLowerCase().split(/\s+/).slice(0, 200);
+            const sampleText = text.substring(0, 1000).toLowerCase();
 
-            words.forEach(word => {
-                for (const [lang, pattern] of Object.entries(patterns)) {
-                    const regex = new RegExp('\\b' + word + '\\b', 'i');
-                    if (regex.test(' ' + word + ' ')) {
-                        scores[lang]++;
-                    }
-                }
-            });
+            for (const [lang, pattern] of Object.entries(patterns)) {
+                const matches = sampleText.match(pattern);
+                scores[lang] = matches ? matches.length : 0;
+            }
 
             const detectedLang = Object.keys(scores).reduce((a, b) => scores[a] > scores[b] ? a : b);
-            return scores[detectedLang] > 10 ? detectedLang : 'other';
+            return scores[detectedLang] > 5 ? detectedLang : 'other';
         }
 
         function analyzeTextPatterns(text, language, contentType) {
@@ -593,47 +570,60 @@
 
             // Analisar padrões de IA
             const langPatterns = aiPatterns[language] || aiPatterns.pt;
+            
             langPatterns.forEach(patternObj => {
-                const matches = [...text.matchAll(patternObj.pattern)];
-                if (matches.length > 0) {
-                    const score = matches.length * patternObj.weight;
-                    aiScore += score;
+                try {
+                    const regex = new RegExp(patternObj.pattern.source, 'gi');
+                    const matches = text.match(regex);
                     
-                    matches.forEach(match => {
-                        const start = match.index;
-                        const end = start + match[0].length;
+                    if (matches && matches.length > 0) {
+                        const score = matches.length * patternObj.weight;
+                        aiScore += score;
                         
-                        aiMatches.push({
-                            start: start,
-                            end: end,
-                            text: match[0],
-                            description: patternObj.description,
-                            suggestion: patternObj.suggestion,
-                            weight: patternObj.weight
+                        matches.forEach(match => {
+                            const start = text.indexOf(match);
+                            if (start !== -1) {
+                                aiMatches.push({
+                                    start: start,
+                                    end: start + match.length,
+                                    text: match,
+                                    description: patternObj.description,
+                                    suggestion: patternObj.suggestion,
+                                    weight: patternObj.weight
+                                });
+                            }
                         });
-                    });
+                    }
+                } catch (error) {
+                    console.warn('Erro no padrão regex:', patternObj.pattern, error);
                 }
             });
 
             // Analisar padrões humanos
             humanPatterns.universal.forEach(patternObj => {
-                const matches = [...text.matchAll(patternObj.pattern)];
-                if (matches.length > 0) {
-                    const score = matches.length * patternObj.weight;
-                    humanScore += score;
+                try {
+                    const regex = new RegExp(patternObj.pattern.source, 'gi');
+                    const matches = text.match(regex);
                     
-                    matches.forEach(match => {
-                        const start = match.index;
-                        const end = start + match[0].length;
+                    if (matches && matches.length > 0) {
+                        const score = matches.length * patternObj.weight;
+                        humanScore += score;
                         
-                        humanMatches.push({
-                            start: start,
-                            end: end,
-                            text: match[0],
-                            description: patternObj.description,
-                            weight: patternObj.weight
+                        matches.forEach(match => {
+                            const start = text.indexOf(match);
+                            if (start !== -1) {
+                                humanMatches.push({
+                                    start: start,
+                                    end: start + match.length,
+                                    text: match,
+                                    description: patternObj.description,
+                                    weight: patternObj.weight
+                                });
+                            }
                         });
-                    });
+                    }
+                } catch (error) {
+                    console.warn('Erro no padrão regex humano:', patternObj.pattern, error);
                 }
             });
 
@@ -643,14 +633,14 @@
             const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim().length > 0);
 
             // Calcular métricas de complexidade
-            const avgSentenceLength = words.length / Math.max(sentences.length, 1);
+            const avgSentenceLength = sentences.length > 0 ? words.length / sentences.length : 0;
             const uniqueWords = new Set(words.map(w => w.toLowerCase()));
-            const lexicalDiversity = (uniqueWords.size / words.length) * 100;
+            const lexicalDiversity = words.length > 0 ? (uniqueWords.size / words.length) * 100 : 0;
 
             // Análise de repetição de palavras
             const wordFrequency = {};
             words.forEach(word => {
-                const cleanWord = word.toLowerCase().replace(/[.,!?;:]/g, '');
+                const cleanWord = word.toLowerCase().replace(/[.,!?;:()]/g, '');
                 if (cleanWord.length > 3) {
                     wordFrequency[cleanWord] = (wordFrequency[cleanWord] || 0) + 1;
                 }
@@ -658,33 +648,30 @@
 
             const repeatedWords = Object.values(wordFrequency).filter(count => count > 3).length;
             
-            // Ajustar scores baseado na complexidade (ALGORITMO MELHORADO)
+            // Ajustar scores baseado na complexidade
             if (avgSentenceLength > 25 && lexicalDiversity < 40) {
-                aiScore += 3; // Texto longo com vocabulário limitado
+                aiScore += 3;
             }
-            if (avgSentenceLength < 12 && lexicalDiversity > 60) {
-                humanScore += 2; // Frases curtas com vocabulário rico
+            if (avgSentenceLength < 15 && lexicalDiversity > 60) {
+                humanScore += 2;
             }
             if (repeatedWords > 10) {
-                aiScore += 2; // Muita repetição de palavras
+                aiScore += 2;
             }
             if (lexicalDiversity > 70) {
-                humanScore += 3; // Vocabulário muito diversificado
+                humanScore += 3;
             }
 
-            // Ajustar para conteúdo acadêmico (NOVO)
+            // Ajustar para conteúdo acadêmico
             if (contentType === 'academic') {
-                // Em textos acadêmicos, alguns padrões "humanos" são menos relevantes
-                humanScore = Math.max(0, humanScore - 2);
-                // E alguns padrões de IA são mais comuns
-                aiScore = Math.max(0, aiScore - 1);
+                humanScore = Math.max(0, humanScore - 1);
             }
 
             return {
-                aiScore: Math.min(aiScore, 15),
-                humanScore: Math.min(humanScore, 15),
-                aiMatches,
-                humanMatches,
+                aiScore: Math.min(aiScore, 20),
+                humanScore: Math.min(humanScore, 20),
+                aiMatches: aiMatches.slice(0, 50), // Limitar número de matches
+                humanMatches: humanMatches.slice(0, 50),
                 metrics: {
                     sentenceCount: sentences.length,
                     wordCount: words.length,
@@ -698,20 +685,17 @@
 
         function calculateProbability(analysis, contentType) {
             const total = analysis.aiScore + analysis.humanScore;
-            if (total === 0) return { human: 50, ai: 50, confidence: 0 };
+            if (total === 0) return { human: 50, ai: 50, confidence: 10 };
 
             let humanProbability = (analysis.humanScore / total) * 100;
-            let aiProbability = 100 - humanProbability;
             
-            // Ajuste para conteúdo acadêmico (NOVO)
+            // Ajuste para conteúdo acadêmico
             if (contentType === 'academic') {
-                // Em textos acadêmicos, tendemos a ser mais conservadores
                 humanProbability = Math.min(humanProbability * 1.1, 95);
-                aiProbability = 100 - humanProbability;
             }
             
-            // Calcular confiança baseada na força dos sinais
-            const confidence = Math.min((analysis.aiScore + analysis.humanScore) / 3 * 10, 100);
+            const aiProbability = 100 - humanProbability;
+            const confidence = Math.min((analysis.aiScore + analysis.humanScore) / 4 * 10, 100);
 
             return {
                 human: Math.round(humanProbability),
@@ -723,7 +707,7 @@
         // ========== FUNÇÃO PARA DESTACAR TEXTO ==========
 
         function highlightTextWithPatterns(text, aiMatches, humanMatches) {
-            // Ordenar todos os destaques por posição
+            // Combinar e ordenar todos os destaques
             const allHighlights = [
                 ...aiMatches.map(m => ({...m, type: 'ai'})),
                 ...humanMatches.map(m => ({...m, type: 'human'}))
@@ -741,7 +725,8 @@
                 // Adicionar texto destacado
                 const highlightedText = text.substring(highlight.start, highlight.end);
                 if (highlight.type === 'ai') {
-                    result += `<span class="text-highlight ai-highlight" title="${highlight.description} - ${highlight.suggestion}">${highlightedText}</span>`;
+                    const title = `${highlight.description} - Sugestão: ${highlight.suggestion}`;
+                    result += `<span class="text-highlight ai-highlight" title="${title}">${highlightedText}</span>`;
                 } else {
                     result += `<span class="text-highlight human-highlight" title="${highlight.description}">${highlightedText}</span>`;
                 }
@@ -754,7 +739,7 @@
                 result += text.substring(lastIndex);
             }
 
-            return result || text; // Retorna o texto original se não houver destaques
+            return result || text;
         }
 
         // ========== FUNÇÕES DE PROCESSAMENTO DE ARQUIVOS ==========
@@ -855,16 +840,16 @@
                     sentenceCount: analysis.metrics.sentenceCount,
                     paragraphCount: analysis.metrics.paragraphCount,
                     advancedMetrics: {
-                        aiPatternScore: Math.round((analysis.aiScore / 15) * 100),
-                        humanPatternScore: Math.round((analysis.humanScore / 15) * 100),
+                        aiPatternScore: Math.round((analysis.aiScore / 20) * 100),
+                        humanPatternScore: Math.round((analysis.humanScore / 20) * 100),
                         lexicalRichness: analysis.metrics.lexicalDiversity,
-                        sentenceVariety: analysis.metrics.avgSentenceLength > 20 ? 'Alta' : 'Moderada',
+                        sentenceVariety: analysis.metrics.avgSentenceLength > 20 ? 'Alta' : analysis.metrics.avgSentenceLength > 15 ? 'Moderada' : 'Baixa',
                         strongAIPatterns: analysis.aiMatches.length,
                         strongHumanPatterns: analysis.humanMatches.length,
                         repeatedWords: analysis.metrics.repeatedWords
                     },
                     aiPatternAnalysis: {
-                        patterns: analysis.aiMatches.slice(0, 10).map(match => ({
+                        patterns: analysis.aiMatches.slice(0, 5).map(match => ({
                             description: match.description,
                             matches: 1,
                             examples: [match.text],
@@ -971,7 +956,7 @@
                 </div>
             `;
 
-            // TEXTO COMPLETO COM DESTAQUES (CORRIGIDO)
+            // TEXTO COMPLETO COM DESTAQUES
             const highlightedText = highlightTextWithPatterns(
                 result.analyzedText, 
                 result.textHighlights.aiPatterns, 
@@ -990,7 +975,7 @@
                 </div>
             `;
 
-            // SUGESTÕES ESPECÍFICAS POR TIPO DE CONTEÚDO (MELHORADO)
+            // SUGESTÕES ESPECÍFICAS
             let suggestionText = '';
             if (result.contentType === 'academic') {
                 if (result.humanProbability < 50) {
@@ -1002,7 +987,7 @@
                             <li><strong>Diversifique as transições:</strong> Use diferentes conectivos entre parágrafos</li>
                             <li><strong>Revise as fórmulas padronizadas:</strong> Reescreva frases muito genéricas</li>
                             <li><strong>Inclua citações específicas:</strong> Referencie autores e obras concretas</li>
-                            <li><strong>Desenvolva argumentos originais:</strong> Apresente análises e interpretações pessoais</li>
+                            <li><strong>Desenvolva argumentos originais:</strong> Apresente análises e interpretações pessoais (sem usar "eu")</li>
                         </ul>
                     `;
                 } else {
@@ -1026,7 +1011,6 @@
                             <li>Varie a estrutura das frases e parágrafos</li>
                             <li>Inclua hesitações e marcadores conversacionais em textos informais</li>
                             <li>Evite fórmulas linguísticas padronizadas</li>
-                            <li>Desenvolva um estilo de escrita mais pessoal</li>
                         </ul>
                     `;
                 } else {
@@ -1036,7 +1020,6 @@
                             <li>Continue mantendo seu estilo pessoal único</li>
                             <li>O uso de expressões pessoais está adequado</li>
                             <li>A estrutura do texto parece natural e autêntica</li>
-                            <li>Mantenha a diversidade vocabular e sintática</li>
                         </ul>
                     `;
                 }
@@ -1092,11 +1075,20 @@
                 currentAnalysisResult = null;
             });
 
-            // ... (restante do código de inicialização igual)
+            downloadPdfBtn.addEventListener('click', function() {
+                if (!currentAnalysisResult) {
+                    alert('Nenhum resultado de análise disponível para gerar PDF.');
+                    return;
+                }
+                alert('Funcionalidade de PDF será implementada em breve!');
+            });
 
+            textInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && e.ctrlKey) {
+                    analyzeContent();
+                }
+            });
         });
-
-        // ... (manter as funções de PDF existentes)
     </script>
 </body>
 </html>
